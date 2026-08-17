@@ -1,0 +1,869 @@
+<title>Kürbis Erntejournal</title>
+<style>
+  :root {
+    --ground: #fafafa;
+    --surface: #ffffff;
+    --ink: #171717;
+    --ink-muted: #737373;
+    --ink-soft: #a3a3a3;
+    --line: #e5e5e5;
+    --line-strong: #d4d4d4;
+    --accent: #ea580c;
+    --accent-press: #c2410c;
+    --accent-soft: #fff7ed;
+    --accent-line: #fdba74;
+    --danger: #dc2626;
+    --danger-soft: #fef2f2;
+    --danger-line: #fecaca;
+    --ok: #15803d;
+    --radius: 14px;
+    --radius-lg: 18px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: contain;
+  }
+
+  .wrap {
+    max-width: 28rem;
+    margin: 0 auto;
+    min-height: 100dvh;
+    padding: 16px 16px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* --- Demo-Hinweis ------------------------------------------------ */
+  .demo-note {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #854d0e;
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.45;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .demo-note strong { font-weight: 650; }
+  .demo-note p { margin: 0; flex: 1; }
+  .demo-note button {
+    border: 0;
+    background: transparent;
+    color: #a16207;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 4px;
+    flex-shrink: 0;
+  }
+  .demo-note button:focus-visible { outline: 2px solid #a16207; outline-offset: 2px; }
+
+  /* --- Typo -------------------------------------------------------- */
+  h1 {
+    font-size: 25px;
+    font-weight: 640;
+    letter-spacing: -0.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .subtitle {
+    margin: -8px 0 0;
+    color: var(--ink-muted);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .field-label {
+    font-size: 13px;
+    font-weight: 560;
+    color: var(--ink-muted);
+  }
+  .big-label {
+    font-size: 17px;
+    font-weight: 540;
+    color: var(--ink-muted);
+    text-align: center;
+  }
+
+  /* --- Formularelemente -------------------------------------------- */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .row { display: flex; gap: 8px; }
+
+  input, select, button { font-family: inherit; font-size: inherit; }
+
+  .input {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 17px;
+    color: var(--ink);
+  }
+  select.input { appearance: none; }
+  .input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+  }
+
+  .input-huge {
+    width: 100%;
+    border: 2px solid var(--line-strong);
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 22px 12px;
+    font-size: 54px;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    -moz-appearance: textfield;
+  }
+  .input-huge::-webkit-outer-spin-button,
+  .input-huge::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .input-huge:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* --- Buttons ------------------------------------------------------ */
+  .btn {
+    border: 0;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 16px;
+    font-weight: 560;
+    cursor: pointer;
+    background: transparent;
+    color: var(--ink);
+  }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:active { background: var(--accent-press); }
+  .btn-primary:disabled { background: var(--line-strong); color: #fff; cursor: not-allowed; }
+
+  .btn-primary-xl {
+    background: var(--accent);
+    color: #fff;
+    border-radius: var(--radius-lg);
+    padding: 22px;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .btn-primary-xl:active { background: var(--accent-press); }
+  .btn-primary-xl:disabled { background: var(--line-strong); cursor: not-allowed; }
+
+  .btn-outline { border: 1px solid var(--line-strong); color: var(--ink); background: var(--surface); }
+  .btn-ghost { color: var(--ink-muted); padding: 8px 10px; }
+  .btn-new {
+    flex-shrink: 0;
+    border: 1px solid var(--accent-line);
+    background: var(--accent-soft);
+    color: var(--accent-press);
+    white-space: nowrap;
+  }
+  .btn-danger-outline { border: 1px solid var(--danger-line); color: var(--danger); background: var(--surface); }
+  .btn-sm { padding: 9px 12px; font-size: 14px; }
+  .btn-full { width: 100%; }
+
+  /* --- Kontextzeilen ------------------------------------------------ */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .context {
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 15px;
+  }
+  .context b { color: var(--ink); font-weight: 620; }
+  .context .pending { color: var(--accent); }
+
+  .session-strip {
+    background: #f0f0f0;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+
+  .stage { flex: 1; display: flex; flex-direction: column; gap: 22px; justify-content: center; }
+
+  /* --- Karten ------------------------------------------------------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .card-title { font-size: 17px; font-weight: 620; font-variant-numeric: tabular-nums; }
+  .card-meta { font-size: 13px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .card-actions { display: flex; gap: 8px; border-top: 1px solid #f0f0f0; padding-top: 12px; margin-top: 8px; }
+  .card-actions .btn { flex: 1; }
+  .card-edit { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid #f0f0f0; padding-top: 12px; margin-top: 8px; }
+
+  .status { font-size: 13px; font-weight: 560; white-space: nowrap; }
+  .status-ok { color: var(--ok); }
+  .status-pending { color: var(--accent); }
+
+  .empty { text-align: center; color: var(--ink-soft); padding: 40px 0; }
+  .list { display: flex; flex-direction: column; gap: 12px; }
+
+  /* --- Dialog -------------------------------------------------------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+    z-index: 50;
+  }
+  @media (min-height: 600px) { .overlay { align-items: center; } }
+
+  .dialog {
+    width: 100%;
+    max-width: 22rem;
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+  }
+  .dialog.warning { border-color: var(--danger); }
+  .dialog h2 { margin: 0; font-size: 20px; font-weight: 700; }
+  .dialog.warning h2 { color: #b91c1c; }
+  .dialog p { margin: 0; font-size: 15px; line-height: 1.5; color: #404040; white-space: pre-line; }
+  .dialog-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .dialog-actions .btn { padding: 14px; font-size: 17px; font-weight: 620; }
+  .btn-danger { background: var(--danger); color: #fff; }
+
+  /* --- Sheet-Ansicht -------------------------------------------------- */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid #f0f0f0; }
+  th { background: #f5f5f5; font-weight: 600; color: var(--ink-muted); position: sticky; top: 0; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.demo-row td { color: var(--ink-soft); }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  .legend { font-size: 12px; color: var(--ink-soft); }
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+  // ==========================================================================
+  // Offline-Demo des Kürbis-Erntejournals.
+  // Gleiche Bedienung und Rechenlogik wie die echte App, aber ohne Google Sheets:
+  // alles landet in localStorage, die "Sheet-Ansicht" zeigt was rausfallen würde.
+  // ==========================================================================
+
+  const PALETTE_TARA_KG = 25;
+  const KISTE_TARA_KG = 1.5;
+  const STANDARD_ANZAHL_KISTEN = 32;
+  const STORAGE_KEY = "kuerbis-demo-v1";
+
+  const netProPalette = (brutto, kisten) => brutto - PALETTE_TARA_KG - kisten * KISTE_TARA_KG;
+  const proKiste = (brutto, kisten) => (kisten > 0 ? netProPalette(brutto, kisten) / kisten : 0);
+
+  // --- Plausibilität: identisch zur echten App -----------------------------
+  const MIN_PROBEN = 3;
+  const MIN_RELATIVE_TOLERANZ = 0.15;
+  const STDDEV_FAKTOR = 2.2;
+
+  function pruefePlausibilitaet(brutto, kisten, stats) {
+    const ist = proKiste(brutto, kisten);
+    if (!stats || stats.anzahl < MIN_PROBEN || !kisten) {
+      return { status: "keine-daten", ist, von: 0, bis: 0 };
+    }
+    const toleranz = Math.max(stats.mittel * MIN_RELATIVE_TOLERANZ, stats.stddev * STDDEV_FAKTOR);
+    const von = stats.mittel - toleranz;
+    const bis = stats.mittel + toleranz;
+    return { status: ist < von || ist > bis ? "warnung" : "ok", ist, von, bis };
+  }
+
+  // --- Demo-Verlaufsdaten, damit die Plausibilitätsprüfung sofort greift ----
+  const DEMO_ROWS = [
+    ["2026-08-03", "Anna Meier", "Oberfeld", "Hokkaido", 393, 32],
+    ["2026-08-03", "Anna Meier", "Oberfeld", "Hokkaido", 406, 32],
+    ["2026-08-03", "Anna Meier", "Oberfeld", "Hokkaido", 387, 32],
+    ["2026-08-04", "Peter Roth", "Oberfeld", "Hokkaido", 399, 32],
+    ["2026-08-04", "Peter Roth", "Talacker", "Butternut", 457, 32],
+    ["2026-08-04", "Peter Roth", "Talacker", "Butternut", 444, 32],
+    ["2026-08-05", "Anna Meier", "Talacker", "Butternut", 470, 32],
+    ["2026-08-05", "Anna Meier", "Talacker", "Butternut", 460, 32],
+    ["2026-08-10", "Sara Blum", "Rain", "Muskat", 553, 32],
+    ["2026-08-10", "Sara Blum", "Rain", "Muskat", 537, 32],
+    ["2026-08-11", "Sara Blum", "Rain", "Muskat", 566, 32],
+    ["2026-08-11", "Peter Roth", "Rain", "Muskat", 559, 32],
+  ].map(([datum, person, feld, sorte, gewicht, kisten]) => ({
+    datum, person, feld, sorte, gewicht, kisten, demo: true,
+  }));
+
+  // --- Zustand --------------------------------------------------------------
+  const todayIso = () => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  };
+
+  const leereConfig = () => ({ datum: todayIso(), person: "", feld: "", sorte: "" });
+
+  let state = ladeZustand();
+  let view = "wiegen";       // wiegen | uebersicht | einstellungen | daten
+  let dialog = null;         // beschreibt den offenen Dialog
+  let editId = null;         // Palette, die in der Übersicht gerade bearbeitet wird
+  let neuFeldOffen = {};     // welche Combo-Felder gerade im "Neu"-Modus sind
+  let entwurf = { gewicht: "", kisten: String(STANDARD_ANZAHL_KISTEN) };
+  // Setup und Einstellungen sammeln Änderungen erst und übernehmen sie beim Speichern,
+  // damit nicht pro Feld einzeln nachgefragt wird.
+  let konfigEntwurf = { ...state.config };
+  let hinweisSichtbar = true;
+
+  function ladeZustand() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        return {
+          config: { ...leereConfig(), ...p.config },
+          entries: Array.isArray(p.entries) ? p.entries : [],
+        };
+      }
+    } catch (e) { /* localStorage nicht verfügbar (z.B. strenge Browser-Einstellung) */ }
+    return { config: leereConfig(), entries: [] };
+  }
+
+  function speichern() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) { /* im Zweifel nur im Arbeitsspeicher halten */ }
+  }
+
+  // --- Abgeleitete Stammdaten ----------------------------------------------
+  const alleZeilen = () => [...DEMO_ROWS, ...state.entries];
+
+  function optionen(feld) {
+    const zaehler = new Map();
+    for (const z of alleZeilen()) {
+      const wert = z[feld];
+      if (wert) zaehler.set(wert, (zaehler.get(wert) || 0) + 1);
+    }
+    return [...zaehler.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name]) => name);
+  }
+
+  function sortenStats(sorte) {
+    const werte = alleZeilen()
+      .filter((z) => z.sorte === sorte && z.gewicht && z.kisten)
+      .map((z) => proKiste(z.gewicht, z.kisten))
+      .filter((w) => Number.isFinite(w) && w > 0);
+    if (!werte.length) return null;
+    const mittel = werte.reduce((a, b) => a + b, 0) / werte.length;
+    const varianz = werte.reduce((a, b) => a + (b - mittel) ** 2, 0) / werte.length;
+    return { mittel, stddev: Math.sqrt(varianz), anzahl: werte.length };
+  }
+
+  // --- Mini-Renderhilfen ----------------------------------------------------
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  const app = document.getElementById("app");
+
+  function render() {
+    const c = state.config;
+    const brauchtSetup = !c.person || !c.feld || !c.sorte;
+    let html = demoNoteHtml();
+
+    if (brauchtSetup) html += setupHtml();
+    else if (view === "einstellungen") html += einstellungenHtml();
+    else if (view === "uebersicht") html += uebersichtHtml();
+    else if (view === "daten") html += datenHtml();
+    else html += wiegenHtml();
+
+    if (dialog) html += dialogHtml();
+
+    app.innerHTML = html;
+    bindEvents();
+  }
+
+  function demoNoteHtml() {
+    if (!hinweisSichtbar) return "";
+    return `<div class="demo-note">
+      <p><strong>Testversion ohne Sheet-Anbindung.</strong> Alles wird nur in diesem Browser
+      gespeichert. Tipp zum Ausprobieren der Plausibilitätsprüfung: Sorte „Hokkaido“ wählen,
+      380 kg eingeben und die Kisten auf 8 stellen.</p>
+      <button data-action="hinweis-zu" aria-label="Hinweis ausblenden">✕</button>
+    </div>`;
+  }
+
+  // --- Combo-Feld (Dropdown + „Neu“) ---------------------------------------
+  function comboHtml(name, label, wert, werte) {
+    if (neuFeldOffen[name]) {
+      return `<div class="field">
+        <label class="field-label" for="neu-${name}">${esc(label)}</label>
+        <div class="row">
+          <input class="input" id="neu-${name}" type="text" placeholder="Neu: ${esc(label)}"
+                 data-neu-input="${name}" autofocus>
+          <button class="btn btn-primary" data-neu-ok="${name}">OK</button>
+          <button class="btn btn-outline" data-neu-abbruch="${name}" aria-label="Abbrechen">✕</button>
+        </div>
+      </div>`;
+    }
+    // Ein gerade neu eingegebener Wert steht noch in keiner Zeile und wäre sonst nicht
+    // in der Liste - er wird deshalb vorangestellt.
+    const alleWerte = wert && !werte.includes(wert) ? [wert, ...werte] : werte;
+    const optionsHtml = [
+      `<option value="" ${wert ? "" : "selected"} disabled>Bitte wählen…</option>`,
+      ...alleWerte.map((o) => `<option value="${esc(o)}" ${o === wert ? "selected" : ""}>${esc(o)}</option>`),
+    ].join("");
+    return `<div class="field">
+      <label class="field-label" for="sel-${name}">${esc(label)}</label>
+      <div class="row">
+        <select class="input" id="sel-${name}" data-combo="${name}">${optionsHtml}</select>
+        <button class="btn btn-new" data-neu-start="${name}">+ Neu</button>
+      </div>
+    </div>`;
+  }
+
+  // --- Screen: Setup / Einstellungen ---------------------------------------
+  function konfigFelderHtml() {
+    const c = konfigEntwurf;
+    return `
+      <div class="field">
+        <label class="field-label" for="datum">Datum</label>
+        <input class="input" id="datum" type="date" value="${esc(c.datum)}" data-combo="datum">
+      </div>
+      ${comboHtml("person", "Person", c.person, optionen("person"))}
+      ${comboHtml("feld", "Feld", c.feld, optionen("feld"))}
+      ${comboHtml("sorte", "Sorte", c.sorte, optionen("sorte"))}`;
+  }
+
+  function setupHtml() {
+    const c = konfigEntwurf;
+    const bereit = c.datum && c.person && c.feld && c.sorte;
+    return `
+      <h1>Neue Anlieferung</h1>
+      <p class="subtitle">Diese Angaben gelten für alle Paletten dieser Anlieferung.
+        Sie lassen sich später jederzeit korrigieren.</p>
+      ${konfigFelderHtml()}
+      <button class="btn btn-primary btn-full" style="padding:16px;font-size:18px;font-weight:640"
+              data-action="setup-fertig" ${bereit ? "" : "disabled"}>Weiter zum Wiegen</button>`;
+  }
+
+  function einstellungenHtml() {
+    return `
+      <button class="btn btn-ghost" style="align-self:flex-start" data-action="einstellungen-abbruch">← Zurück zur Übersicht</button>
+      <h1>Einstellungen</h1>
+      ${konfigFelderHtml()}
+      <button class="btn btn-primary btn-full" style="padding:16px;font-size:18px;font-weight:640"
+              data-action="einstellungen-fertig">Speichern</button>`;
+  }
+
+  // --- Screen: Wiegen -------------------------------------------------------
+  function wiegenHtml() {
+    const c = state.config;
+    return `
+      <div class="topbar" style="justify-content:flex-end">
+        <button class="btn btn-ghost" data-action="zur-uebersicht">
+          📋 Übersicht (${state.entries.length})
+        </button>
+      </div>
+      <div class="context"><b>${esc(c.sorte)}</b> · ${esc(c.feld)}</div>
+      <div class="stage">
+        <div class="field">
+          <label class="big-label" for="gewicht">Gewicht brutto (kg)</label>
+          <input class="input-huge" id="gewicht" type="number" inputmode="decimal"
+                 placeholder="0" value="${esc(entwurf.gewicht)}" data-entwurf="gewicht">
+        </div>
+        <div class="field">
+          <label class="big-label" for="kisten">Anzahl Kisten</label>
+          <input class="input-huge" id="kisten" type="number" inputmode="numeric"
+                 value="${esc(entwurf.kisten)}" data-entwurf="kisten">
+        </div>
+      </div>
+      <button class="btn btn-primary-xl btn-full" data-action="palette-speichern"
+              ${entwurf.gewicht && entwurf.kisten ? "" : "disabled"}>Weiter →</button>`;
+  }
+
+  // --- Screen: Übersicht ----------------------------------------------------
+  function uebersichtHtml() {
+    const c = state.config;
+    const sortiert = [...state.entries].sort((a, b) => b.createdAt - a.createdAt);
+
+    const karten = sortiert.length
+      ? sortiert.map(karteHtml).join("")
+      : `<p class="empty">Noch keine Palette erfasst.</p>`;
+
+    return `
+      <div class="topbar">
+        <button class="btn btn-ghost" data-action="zum-wiegen">← Zurück zum Wiegen</button>
+        <button class="btn btn-outline btn-sm" data-action="zu-einstellungen">⚙ Einstellungen</button>
+      </div>
+      <div class="session-strip">
+        ${esc(c.datum)} · ${esc(c.person)} · ${esc(c.feld)} · ${esc(c.sorte)}
+      </div>
+      <div class="list">${karten}</div>
+      <button class="btn btn-outline btn-full" data-action="sheet-ansicht">Sheet-Ansicht &amp; Export</button>
+      <button class="btn btn-outline btn-full" data-action="neue-anlieferung">Neue Anlieferung starten</button>`;
+  }
+
+  function karteHtml(e) {
+    if (editId === e.id) {
+      return `<div class="card">
+        <div class="card-head">
+          <span class="card-title">${e.kisten} Kisten · ${e.gewicht} kg</span>
+        </div>
+        <div class="card-edit">
+          <div class="row">
+            <div class="field" style="flex:1">
+              <label class="field-label" for="edit-kisten">Kisten</label>
+              <input class="input" id="edit-kisten" type="number" inputmode="numeric" value="${e.kisten}">
+            </div>
+            <div class="field" style="flex:1">
+              <label class="field-label" for="edit-gewicht">Gewicht (kg)</label>
+              <input class="input" id="edit-gewicht" type="number" inputmode="decimal" value="${e.gewicht}">
+            </div>
+          </div>
+          ${comboHtml("edit-feld", "Feld", e.feld, optionen("feld"))}
+          ${comboHtml("edit-sorte", "Sorte", e.sorte, optionen("sorte"))}
+          <div class="row">
+            <button class="btn btn-primary" style="flex:1" data-action="edit-speichern" data-id="${e.id}">Speichern</button>
+            <button class="btn btn-outline" style="flex:1" data-action="edit-abbruch">Abbrechen</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    return `<div class="card">
+      <div class="card-head">
+        <span class="card-title">${e.kisten} Kisten · ${e.gewicht} kg</span>
+        <span class="status status-ok">gespeichert</span>
+      </div>
+      <div class="card-meta">
+        ${esc(e.sorte)} · ${esc(e.feld)} · ${proKiste(e.gewicht, e.kisten).toFixed(2)} kg/Kiste
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-outline btn-sm" data-action="edit-start" data-id="${e.id}">Bearbeiten</button>
+        <button class="btn btn-danger-outline btn-sm" data-action="loeschen" data-id="${e.id}">Löschen</button>
+      </div>
+    </div>`;
+  }
+
+  // --- Screen: Sheet-Ansicht ------------------------------------------------
+  function datenHtml() {
+    const zeilen = alleZeilen().map((z) => {
+      const netto = netProPalette(z.gewicht, z.kisten);
+      return `<tr class="${z.demo ? "demo-row" : ""}">
+        <td>${esc(z.datum)}</td>
+        <td>${esc(z.person)}</td>
+        <td>${esc(z.feld)}</td>
+        <td>${esc(z.sorte)}</td>
+        <td class="num">${z.gewicht}</td>
+        <td class="num">${z.kisten}</td>
+        <td class="num">${netto.toFixed(1)}</td>
+        <td class="num">${proKiste(z.gewicht, z.kisten).toFixed(2)}</td>
+      </tr>`;
+    }).join("");
+
+    return `
+      <button class="btn btn-ghost" style="align-self:flex-start" data-action="zur-uebersicht">← Zurück zur Übersicht</button>
+      <h1>Sheet-Ansicht</h1>
+      <p class="subtitle">So würden die Zeilen im Erntejournal landen. Graue Zeilen sind
+        mitgelieferte Beispieldaten, damit die Plausibilitätsprüfung etwas zum Vergleichen hat.</p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Datum</th><th>Person</th><th>Feld</th><th>Sorte</th>
+              <th class="num">Brutto</th><th class="num">Kisten</th>
+              <th class="num">Netto</th><th class="num">kg/Kiste</th>
+            </tr>
+          </thead>
+          <tbody>${zeilen}</tbody>
+        </table>
+      </div>
+      <p class="legend">Netto = Brutto − ${PALETTE_TARA_KG} kg Palette − ${KISTE_TARA_KG} kg pro Kiste</p>
+      <button class="btn btn-outline btn-full" data-action="csv-kopieren">Als CSV kopieren</button>`;
+  }
+
+  // --- Dialoge ---------------------------------------------------------------
+  function dialogHtml() {
+    const d = dialog;
+    return `<div class="overlay" data-overlay>
+      <div class="dialog ${d.tone === "warning" ? "warning" : ""}" role="dialog" aria-modal="true">
+        <h2>${d.tone === "warning" ? "⚠️ " : ""}${esc(d.title)}</h2>
+        <p>${esc(d.message)}</p>
+        <div class="dialog-actions">
+          <button class="btn ${d.tone === "warning" ? "btn-danger" : "btn-primary"}" data-action="dialog-ja">
+            ${esc(d.confirmLabel)}
+          </button>
+          <button class="btn btn-outline" data-action="dialog-nein">${esc(d.cancelLabel)}</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // --- Aktionen ---------------------------------------------------------------
+  function setzeKonfigEntwurf(feld, wert) {
+    konfigEntwurf = { ...konfigEntwurf, [feld]: wert };
+    render();
+  }
+
+  /** Übernimmt den Entwurf; fragt vorher, ob bereits erfasste Paletten mitgeändert werden. */
+  function konfigUebernehmen(zurueckNach) {
+    const geaendert = ["datum", "person", "feld", "sorte"]
+      .filter((k) => state.config[k] !== konfigEntwurf[k]);
+
+    const anwenden = (rueckwirkend) => {
+      state.config = { ...konfigEntwurf };
+      if (rueckwirkend) {
+        const uebernahme = {};
+        geaendert.forEach((k) => { uebernahme[k] = konfigEntwurf[k]; });
+        state.entries = state.entries.map((e) => ({ ...e, ...uebernahme }));
+      }
+      view = zurueckNach;
+      speichern();
+    };
+
+    if (geaendert.length === 0 || state.entries.length === 0) {
+      anwenden(false);
+      render();
+      return;
+    }
+
+    dialog = {
+      title: "Bereits erfasste Paletten auch anpassen?",
+      message: `Es sind bereits ${state.entries.length} Palette(n) in dieser Anlieferung erfasst.\n\n` +
+               `Sollen die geänderten Angaben auch auf diese bereits erfassten Paletten übernommen werden?`,
+      confirmLabel: "Ja, alle anpassen",
+      cancelLabel: "Nein, nur ab jetzt",
+      onJa: () => { anwenden(true); render(); },
+      onNein: () => { anwenden(false); render(); },
+    };
+    render();
+  }
+
+  function paletteSpeichern(bestaetigt) {
+    const kisten = Number(String(entwurf.kisten).replace(",", "."));
+    const gewicht = Number(String(entwurf.gewicht).replace(",", "."));
+    if (!kisten || !gewicht) return;
+
+    if (!bestaetigt) {
+      const check = pruefePlausibilitaet(gewicht, kisten, sortenStats(state.config.sorte));
+      if (check.status === "warnung") {
+        dialog = {
+          tone: "warning",
+          title: "Gewicht wirkt ungewöhnlich",
+          message: `Üblich für ${state.config.sorte}: ${check.von.toFixed(1)}–${check.bis.toFixed(1)} kg pro Kiste.\n` +
+                   `Aktuell eingegeben: ${check.ist.toFixed(1)} kg pro Kiste bei ${kisten} Kisten.\n\n` +
+                   `Stimmt die Anzahl Kisten wirklich?`,
+          confirmLabel: "Ja, trotzdem speichern",
+          cancelLabel: "Kisten-Anzahl korrigieren",
+          onJa: () => paletteSpeichern(true),
+          onNein: () => { setTimeout(() => document.getElementById("kisten")?.select(), 0); },
+        };
+        render();
+        return;
+      }
+    }
+
+    state.entries.push({
+      id: String(Date.now()) + Math.random().toString(36).slice(2, 7),
+      ...state.config,
+      gewicht,
+      kisten,
+      createdAt: Date.now(),
+    });
+    entwurf = { gewicht: "", kisten: String(STANDARD_ANZAHL_KISTEN) };
+    speichern();
+    render();
+    document.getElementById("gewicht")?.focus();
+  }
+
+  function csvKopieren(button) {
+    const kopf = "Datum;Person;Feld;Sorte;Gewicht brutto;Anzahl Kisten;Netto;kg pro Kiste";
+    const zeilen = alleZeilen().map((z) => [
+      z.datum, z.person, z.feld, z.sorte, z.gewicht, z.kisten,
+      netProPalette(z.gewicht, z.kisten).toFixed(1),
+      proKiste(z.gewicht, z.kisten).toFixed(2),
+    ].join(";"));
+    const csv = [kopf, ...zeilen].join("\n");
+
+    navigator.clipboard?.writeText(csv).then(
+      () => { button.textContent = "In die Zwischenablage kopiert ✓"; },
+      () => { button.textContent = "Kopieren hat nicht geklappt"; }
+    );
+  }
+
+  // --- Event-Verdrahtung ------------------------------------------------------
+  function bindEvents() {
+    // Auswahl- und Datumsfelder
+    app.querySelectorAll("[data-combo]").forEach((el) => {
+      el.addEventListener("change", () => {
+        const name = el.dataset.combo;
+        if (name === "edit-feld" || name === "edit-sorte") return; // wird beim Speichern gelesen
+        setzeKonfigEntwurf(name, el.value);
+      });
+    });
+
+    // „+ Neu“-Ablauf
+    app.querySelectorAll("[data-neu-start]").forEach((el) => {
+      el.addEventListener("click", () => { neuFeldOffen[el.dataset.neuStart] = true; render(); });
+    });
+    app.querySelectorAll("[data-neu-abbruch]").forEach((el) => {
+      el.addEventListener("click", () => { neuFeldOffen[el.dataset.neuAbbruch] = false; render(); });
+    });
+    app.querySelectorAll("[data-neu-ok]").forEach((el) => {
+      el.addEventListener("click", () => uebernehmeNeu(el.dataset.neuOk));
+    });
+    app.querySelectorAll("[data-neu-input]").forEach((el) => {
+      el.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") uebernehmeNeu(el.dataset.neuInput);
+      });
+    });
+
+    // Wiege-Eingaben: Wert merken, ohne neu zu rendern (sonst springt der Fokus)
+    app.querySelectorAll("[data-entwurf]").forEach((el) => {
+      el.addEventListener("input", () => {
+        entwurf[el.dataset.entwurf] = el.value;
+        const weiter = app.querySelector('[data-action="palette-speichern"]');
+        if (weiter) weiter.disabled = !entwurf.gewicht || !entwurf.kisten;
+      });
+      el.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter") return;
+        if (el.id === "gewicht") document.getElementById("kisten")?.focus();
+        else paletteSpeichern(false);
+      });
+      if (el.id === "kisten") el.addEventListener("focus", () => el.select());
+    });
+
+    app.querySelectorAll("[data-action]").forEach((el) => {
+      el.addEventListener("click", () => handleAction(el.dataset.action, el));
+    });
+  }
+
+  function uebernehmeNeu(name) {
+    const input = app.querySelector(`[data-neu-input="${name}"]`);
+    const wert = (input?.value || "").trim();
+    neuFeldOffen[name] = false;
+    if (!wert) { render(); return; }
+
+    if (name === "edit-feld" || name === "edit-sorte") {
+      // Beim Bearbeiten einer Palette: Wert nur vormerken, gespeichert wird per Button.
+      const eintrag = state.entries.find((e) => e.id === editId);
+      if (eintrag) eintrag[name === "edit-feld" ? "feld" : "sorte"] = wert;
+      speichern();
+      render();
+      return;
+    }
+    setzeKonfigEntwurf(name, wert);
+  }
+
+  function handleAction(action, el) {
+    switch (action) {
+      case "setup-fertig": konfigUebernehmen("wiegen"); return;
+      case "einstellungen-fertig": konfigUebernehmen("uebersicht"); return;
+      case "einstellungen-abbruch":
+        konfigEntwurf = { ...state.config };  // Änderungen verwerfen
+        view = "uebersicht";
+        break;
+
+      case "zum-wiegen": view = "wiegen"; break;
+      case "zur-uebersicht": view = "uebersicht"; editId = null; break;
+      case "zu-einstellungen":
+        konfigEntwurf = { ...state.config };
+        view = "einstellungen";
+        break;
+      case "sheet-ansicht": view = "daten"; break;
+      case "hinweis-zu": hinweisSichtbar = false; break;
+
+      case "palette-speichern": paletteSpeichern(false); return;
+
+      case "edit-start": editId = el.dataset.id; break;
+      case "edit-abbruch": editId = null; break;
+      case "edit-speichern": {
+        const e = state.entries.find((x) => x.id === el.dataset.id);
+        if (e) {
+          e.kisten = Number(document.getElementById("edit-kisten").value) || e.kisten;
+          e.gewicht = Number(document.getElementById("edit-gewicht").value) || e.gewicht;
+          const feldSel = app.querySelector('[data-combo="edit-feld"]');
+          const sorteSel = app.querySelector('[data-combo="edit-sorte"]');
+          if (feldSel) e.feld = feldSel.value;
+          if (sorteSel) e.sorte = sorteSel.value;
+        }
+        editId = null;
+        speichern();
+        break;
+      }
+
+      case "loeschen": {
+        const id = el.dataset.id;
+        dialog = {
+          title: "Palette löschen?",
+          message: "Diese Palette wird aus der Erfassung entfernt. Das kann nicht rückgängig gemacht werden.",
+          confirmLabel: "Ja, löschen",
+          cancelLabel: "Abbrechen",
+          onJa: () => { state.entries = state.entries.filter((e) => e.id !== id); speichern(); },
+          onNein: () => {},
+        };
+        break;
+      }
+
+      case "neue-anlieferung":
+        dialog = {
+          title: "Neue Anlieferung starten?",
+          message: "Die bisherigen Paletten bleiben in der Sheet-Ansicht erhalten, werden hier aber " +
+                   "nicht mehr angezeigt. Feld und Sorte werden zurückgesetzt.",
+          confirmLabel: "Ja, neue Anlieferung",
+          cancelLabel: "Abbrechen",
+          onJa: () => {
+            state.config = { ...leereConfig(), datum: state.config.datum, person: state.config.person };
+            konfigEntwurf = { ...state.config };
+            state.entries = [];
+            view = "wiegen";
+            speichern();
+          },
+          onNein: () => {},
+        };
+        break;
+
+      case "csv-kopieren": csvKopieren(el); return;
+
+      case "dialog-ja": {
+        const cb = dialog?.onJa;
+        dialog = null;
+        cb?.();
+        break;
+      }
+      case "dialog-nein": {
+        const cb = dialog?.onNein;
+        dialog = null;
+        render();
+        cb?.();
+        return;
+      }
+    }
+    render();
+  }
+
+  render();
+</script>
