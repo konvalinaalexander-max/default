@@ -193,11 +193,16 @@ export async function richteSheetEin(): Promise<EinrichtungsBericht> {
   });
 
   // Info-Zeilen verbinden + formatieren, aber nur wenn wir sie auch schreiben.
+  // Ob verbunden werden muss: Wird eine Zeile eingefügt, ist die neue Zeile 1 garantiert
+  // unverbunden. Sonst wird geprüft, ob schon eine Verbindung besteht - ein erneutes
+  // Verbinden derselben Zellen lehnt die Schnittstelle sonst mit einem Fehler ab.
   if (journalHintNeu) {
-    req.push(...verbindeUndFormatiere(journal.gid, JOURNAL_HINWEIS_ROW, JOURNAL_HEADER.length));
+    const mergeNoetig = kopf.braucheInsert || !hatMergeInZeile(meta.data, journal.gid, JOURNAL_HINWEIS_ROW - 1);
+    req.push(...verbindeUndFormatiere(journal.gid, JOURNAL_HINWEIS_ROW, JOURNAL_HEADER.length, mergeNoetig));
   }
   if (planHintNeu) {
-    req.push(...verbindeUndFormatiere(plan.gid, PLAN_HINWEIS_ROW, PLAN_HEADER.length));
+    const mergeNoetig = !hatMergeInZeile(meta.data, plan.gid, PLAN_HINWEIS_ROW - 1);
+    req.push(...verbindeUndFormatiere(plan.gid, PLAN_HINWEIS_ROW, PLAN_HEADER.length, mergeNoetig));
   }
 
   // Kopfzeilen fett.
@@ -415,8 +420,23 @@ function einfrieren(
   ];
 }
 
-/** Verbindet die Hinweiszeile über die volle Breite und formatiert sie (umbrechen, fett). */
-function verbindeUndFormatiere(gid: number, zeile: number, breite: number): sheets_v4.Schema$Request[] {
+/** Ob im angegebenen (0-basierten) Zeilenindex eines Blatts schon eine Verbindung besteht. */
+function hatMergeInZeile(meta: sheets_v4.Schema$Spreadsheet, gid: number, zeileIndex: number): boolean {
+  const blatt = (meta.sheets ?? []).find((s) => s.properties?.sheetId === gid);
+  return (blatt?.merges ?? []).some((m) => (m.startRowIndex ?? 0) === zeileIndex);
+}
+
+/**
+ * Verbindet die Hinweiszeile über die volle Breite und formatiert sie (umbrechen, fett).
+ * Das Verbinden wird ausgelassen, wenn die Zellen schon verbunden sind - ein zweites
+ * MERGE_ALL über denselben Bereich lehnt die Schnittstelle mit einem Fehler ab.
+ */
+function verbindeUndFormatiere(
+  gid: number,
+  zeile: number,
+  breite: number,
+  mergeNoetig: boolean
+): sheets_v4.Schema$Request[] {
   const range = {
     sheetId: gid,
     startRowIndex: zeile - 1,
@@ -424,16 +444,16 @@ function verbindeUndFormatiere(gid: number, zeile: number, breite: number): shee
     startColumnIndex: 0,
     endColumnIndex: breite,
   };
-  return [
-    { mergeCells: { range, mergeType: "MERGE_ALL" } },
-    {
-      repeatCell: {
-        range,
-        cell: { userEnteredFormat: { wrapStrategy: "WRAP", verticalAlignment: "TOP", textFormat: { bold: true } } },
-        fields: "userEnteredFormat(wrapStrategy,verticalAlignment,textFormat)",
-      },
+  const anfragen: sheets_v4.Schema$Request[] = [];
+  if (mergeNoetig) anfragen.push({ mergeCells: { range, mergeType: "MERGE_ALL" } });
+  anfragen.push({
+    repeatCell: {
+      range,
+      cell: { userEnteredFormat: { wrapStrategy: "WRAP", verticalAlignment: "TOP", textFormat: { bold: true } } },
+      fields: "userEnteredFormat(wrapStrategy,verticalAlignment,textFormat)",
     },
-  ];
+  });
+  return anfragen;
 }
 
 function fettZeile(gid: number, zeile: number, breite: number): sheets_v4.Schema$Request {
