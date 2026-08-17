@@ -1,10 +1,12 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ComboField } from "./ComboField";
+import { t, type Lang } from "@/lib/i18n";
 import type { SessionConfig } from "@/lib/types";
+import { ComboField } from "./ComboField";
 
 interface SessionConfigFormProps {
+  lang: Lang;
   config: SessionConfig;
   personen: string[];
   felder: string[];
@@ -14,9 +16,12 @@ interface SessionConfigFormProps {
   submitLabel: string;
   title?: string;
   subtitle?: string;
+  /** Zusätzliche Bedienelemente unter dem Formular (z.B. Sprachwahl). */
+  children?: React.ReactNode;
 }
 
 export function SessionConfigForm({
+  lang,
   config,
   personen,
   felder,
@@ -26,6 +31,7 @@ export function SessionConfigForm({
   submitLabel,
   title,
   subtitle,
+  children,
 }: SessionConfigFormProps) {
   const [local, setLocal] = useState<SessionConfig>(config);
   const datumId = useId();
@@ -43,7 +49,7 @@ export function SessionConfigForm({
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor={datumId} className="text-sm font-medium text-neutral-600">
-          Datum
+          {t(lang, "date")}
         </label>
         <input
           id={datumId}
@@ -55,7 +61,8 @@ export function SessionConfigForm({
       </div>
 
       <ComboField
-        label="Person"
+        lang={lang}
+        label={t(lang, "person")}
         value={local.person}
         options={personen}
         onChange={(v) => {
@@ -64,7 +71,8 @@ export function SessionConfigForm({
         }}
       />
       <ComboField
-        label="Feld"
+        lang={lang}
+        label={t(lang, "field")}
         value={local.feld}
         options={felder}
         onChange={(v) => {
@@ -73,7 +81,8 @@ export function SessionConfigForm({
         }}
       />
       <ComboField
-        label="Sorte"
+        lang={lang}
+        label={t(lang, "variety")}
         value={local.sorte}
         options={sorten}
         onChange={(v) => {
@@ -90,6 +99,8 @@ export function SessionConfigForm({
       >
         {submitLabel}
       </button>
+
+      {children}
     </div>
   );
 }

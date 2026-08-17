@@ -1,24 +1,27 @@
 "use client";
 
 import { useId, useState } from "react";
+import { t, type Lang } from "@/lib/i18n";
 
 interface ComboFieldProps {
+  lang: Lang;
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
-  placeholder?: string;
 }
 
 /**
  * Dropdown mit bestehenden Werten + Möglichkeit, direkt einen neuen Wert
  * hinzuzufügen (z.B. eine neue Person oder ein neues Feld).
  */
-export function ComboField({ label, value, options, onChange, placeholder }: ComboFieldProps) {
+export function ComboField({ lang, label, value, options, onChange }: ComboFieldProps) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const selectId = useId();
 
+  // Ein gerade neu eingegebener Wert steht noch in keiner Sheet-Zeile und wäre sonst
+  // nicht in der Liste - er wird deshalb vorangestellt.
   const allOptions = value && !options.includes(value) ? [value, ...options] : options;
 
   function commitNew() {
@@ -41,7 +44,7 @@ export function ComboField({ label, value, options, onChange, placeholder }: Com
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && commitNew()}
-            placeholder={placeholder ?? `Neu: ${label}`}
+            placeholder={label}
             className="min-w-0 flex-1 rounded-xl border border-neutral-300 bg-white px-4 py-3 text-lg"
           />
           <button
@@ -49,7 +52,7 @@ export function ComboField({ label, value, options, onChange, placeholder }: Com
             onClick={commitNew}
             className="shrink-0 rounded-xl bg-orange-600 px-4 py-3 text-lg font-medium text-white active:bg-orange-700"
           >
-            OK
+            {t(lang, "ok")}
           </button>
           <button
             type="button"
@@ -57,6 +60,7 @@ export function ComboField({ label, value, options, onChange, placeholder }: Com
               setAdding(false);
               setDraft("");
             }}
+            aria-label={t(lang, "cancel")}
             className="shrink-0 rounded-xl border border-neutral-300 px-3 py-3 text-lg text-neutral-500"
           >
             ✕
@@ -71,7 +75,7 @@ export function ComboField({ label, value, options, onChange, placeholder }: Com
             className="min-w-0 flex-1 appearance-none rounded-xl border border-neutral-300 bg-white px-4 py-3 text-lg"
           >
             <option value="" disabled>
-              Bitte wählen…
+              {t(lang, "pleaseSelect")}
             </option>
             {allOptions.map((opt) => (
               <option key={opt} value={opt}>
@@ -82,10 +86,10 @@ export function ComboField({ label, value, options, onChange, placeholder }: Com
           <button
             type="button"
             onClick={() => setAdding(true)}
-            aria-label={`Neue ${label} hinzufügen`}
+            aria-label={`${t(lang, "addNewAria")}: ${label}`}
             className="shrink-0 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 text-lg font-medium text-orange-700 active:bg-orange-100"
           >
-            + Neu
+            + {t(lang, "addNew")}
           </button>
         </div>
       )}

@@ -3,10 +3,14 @@ import { google, sheets_v4 } from "googleapis";
 import {
   COLUMNS,
   FIRST_DATA_ROW,
+  KISTE_TARA_KG,
+  PALETTE_TARA_KG,
   SHEET_NAME,
   STANDARD_GEBINDEART,
   gewichtProKiste,
+  isoZuSheetDatum,
 } from "./constants";
+import { median, medianAbsoluteDeviation } from "./plausibility";
 import type { PaletteEntry, ReferenceData, SorteStats } from "./types";
 
 let cachedClient: sheets_v4.Sheets | null = null;
@@ -66,17 +70,25 @@ function rowValues(entry: {
   anzahlKisten: number;
   gebindeart?: string;
   bemerkung?: string;
-}, row: number): (string | number)[] {
+}): (string | number)[] {
   return [
-    entry.datum,
+    isoZuSheetDatum(entry.datum),
     entry.person,
     entry.feld,
     entry.sorte,
     entry.gewichtBrutto,
     entry.anzahlKisten,
-    entry.gebindeart && entry.gebindeart !== STANDARD_GEBINDEART ? entry.gebindeart : "",
+    // Immer ausschreiben. Vorher blieb die Zelle beim Standardwert leer - das hinterliess
+    // Lücken in der Spalte und löste bei einer Datenprüfung eine rote Markierung aus.
+    entry.gebindeart || STANDARD_GEBINDEART,
     entry.bemerkung ?? "",
-    `=E${row}-25-F${row}*1.5`,
+  ];
+}
+
+/** Die beiden Formelspalten, passend zur tatsächlichen Zeilennummer. */
+function formelWerte(row: number): string[] {
+  return [
+    `=E${row}-${PALETTE_TARA_KG}-F${row}*${KISTE_TARA_KG}`,
     `=I${row}/F${row}`,
   ];
 }
@@ -127,13 +139,11 @@ export async function getReferenceData(): Promise<ReferenceData> {
 
   const sortenStats: Record<string, SorteStats> = {};
   for (const [sorte, werte] of proSorteWerte) {
-    const n = werte.length;
-    const mittelwert = werte.reduce((a, b) => a + b, 0) / n;
-    const varianz = werte.reduce((a, b) => a + (b - mittelwert) ** 2, 0) / n;
+    const med = median(werte);
     sortenStats[sorte] = {
-      mittelwertProKiste: mittelwert,
-      stddevProKiste: Math.sqrt(varianz),
-      anzahlProben: n,
+      medianProKiste: med,
+      madProKiste: medianAbsoluteDeviation(werte, med),
+      anzahlProben: werte.length,
     };
   }
 
@@ -158,14 +168,13 @@ function parseRowFromRange(range: string | null | undefined): number {
  */
 export async function appendPalette(entry: PaletteEntry): Promise<SyncResult> {
   const sheets = getClient();
-  const baseValues = rowValues(entry, 0).slice(0, 8); // Spalten A-H, ohne die Formelspalten I/J
 
   const res = await sheets.spreadsheets.values.append({
     spreadsheetId: getSheetId(),
     range: `${SHEET_NAME}!A:H`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
-    requestBody: { values: [baseValues] },
+    requestBody: { values: [rowValues(entry)] },
   });
 
   const sheetRow = parseRowFromRange(res.data.updates?.updatedRange);
@@ -174,9 +183,7 @@ export async function appendPalette(entry: PaletteEntry): Promise<SyncResult> {
     spreadsheetId: getSheetId(),
     range: `${SHEET_NAME}!${colLetter(COLUMNS.gewichtProPalette)}${sheetRow}:${colLetter(COLUMNS.gewichtProKiste)}${sheetRow}`,
     valueInputOption: "USER_ENTERED",
-    requestBody: {
-      values: [[`=E${sheetRow}-25-F${sheetRow}*1.5`, `=I${sheetRow}/F${sheetRow}`]],
-    },
+    requestBody: { values: [formelWerte(sheetRow)] },
   });
 
   return { sheetRow };
@@ -189,19 +196,48 @@ export async function updatePalette(sheetRow: number, entry: PaletteEntry): Prom
     spreadsheetId: getSheetId(),
     range: rowRange(sheetRow),
     valueInputOption: "USER_ENTERED",
-    requestBody: { values: [rowValues(entry, sheetRow)] },
+    requestBody: { values: [[...rowValues(entry), ...formelWerte(sheetRow)]] },
   });
 }
 
-/**
- * Leert eine Palette-Zeile (statt sie zu löschen), damit sich die Zeilennummern
- * aller anderen, bereits synchronisierten Paletten dieser Session nicht verschieben.
- */
-export async function clearPalette(sheetRow: number): Promise<void> {
+/** Numerische ID des Tabellenblatts - für das echte Löschen einer Zeile nötig. */
+async function getSheetGid(): Promise<number> {
   const sheets = getClient();
-  await sheets.spreadsheets.values.clear({
+  const meta = await sheets.spreadsheets.get({
     spreadsheetId: getSheetId(),
-    range: rowRange(sheetRow),
+    fields: "sheets.properties(sheetId,title)",
+  });
+  const blatt = meta.data.sheets?.find((s) => s.properties?.title === SHEET_NAME);
+  if (!blatt?.properties?.sheetId && blatt?.properties?.sheetId !== 0) {
+    throw new Error(`Tabellenblatt "${SHEET_NAME}" nicht gefunden.`);
+  }
+  return blatt.properties.sheetId;
+}
+
+/**
+ * Löscht die Zeile wirklich, statt sie nur zu leeren - sonst bleiben über die Saison
+ * leere Zeilen mitten in den Daten stehen und stören jede Auswertung.
+ * Die Zeilennummern darunter verschieben sich dadurch um eins nach oben; der Aufrufer
+ * muss die gemerkten Zeilennummern entsprechend anpassen.
+ */
+export async function deletePaletteRow(sheetRow: number): Promise<void> {
+  const sheets = getClient();
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: getSheetId(),
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: await getSheetGid(),
+              dimension: "ROWS",
+              startIndex: sheetRow - 1, // API zählt ab 0
+              endIndex: sheetRow,
+            },
+          },
+        },
+      ],
+    },
   });
 }
 
@@ -213,7 +249,7 @@ export async function batchUpdateSessionFields(
   const sheets = getClient();
   const data: sheets_v4.Schema$ValueRange[] = updates.map((u) => ({
     range: `${SHEET_NAME}!${colLetter(COLUMNS.datum)}${u.sheetRow}:${colLetter(COLUMNS.sorte)}${u.sheetRow}`,
-    values: [[u.datum, u.person, u.feld, u.sorte]],
+    values: [[isoZuSheetDatum(u.datum), u.person, u.feld, u.sorte]],
   }));
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: getSheetId(),

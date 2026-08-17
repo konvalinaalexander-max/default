@@ -1,0 +1,476 @@
+export type Lang = "de" | "en" | "hu" | "pl" | "pt";
+
+export const LANGUAGES: { code: Lang; name: string; locale: string }[] = [
+  { code: "de", name: "Deutsch", locale: "de-CH" },
+  { code: "en", name: "English", locale: "en-GB" },
+  { code: "hu", name: "Magyar", locale: "hu-HU" },
+  { code: "pl", name: "Polski", locale: "pl-PL" },
+  { code: "pt", name: "Português", locale: "pt-PT" },
+];
+
+export const DEFAULT_LANG: Lang = "de";
+
+/**
+ * Alle Texte der App. Absichtlich kurze, einfache Sätze ohne Nebensätze und ohne
+ * Zahlwörter direkt vor einem Substantiv - dadurch entstehen in keiner Sprache
+ * falsche Plural- oder Fallformen.
+ */
+const TEXTS = {
+  // --- Sprachwahl ---
+  chooseLanguage: {
+    de: "Sprache wählen",
+    en: "Choose language",
+    hu: "Válassz nyelvet",
+    pl: "Wybierz język",
+    pt: "Escolher idioma",
+  },
+  language: {
+    de: "Sprache",
+    en: "Language",
+    hu: "Nyelv",
+    pl: "Język",
+    pt: "Idioma",
+  },
+
+  // --- Anlieferung anlegen ---
+  newDeliveryTitle: {
+    de: "Neue Anlieferung",
+    en: "New delivery",
+    hu: "Új beszállítás",
+    pl: "Nowa dostawa",
+    pt: "Nova entrega",
+  },
+  setupHint: {
+    de: "Diese Angaben gelten für alle Paletten. Du kannst sie später ändern.",
+    en: "These details apply to all pallets. You can change them later.",
+    hu: "Ezek az adatok minden palettára érvényesek. Később módosíthatod.",
+    pl: "Te dane dotyczą wszystkich palet. Możesz je później zmienić.",
+    pt: "Estes dados aplicam-se a todas as paletes. Pode alterar mais tarde.",
+  },
+  date: {
+    de: "Datum",
+    en: "Date",
+    hu: "Dátum",
+    pl: "Data",
+    pt: "Data",
+  },
+  person: {
+    de: "Person",
+    en: "Person",
+    hu: "Személy",
+    pl: "Osoba",
+    pt: "Pessoa",
+  },
+  field: {
+    de: "Feld",
+    en: "Field",
+    hu: "Terület",
+    pl: "Pole",
+    pt: "Campo",
+  },
+  variety: {
+    de: "Sorte",
+    en: "Variety",
+    hu: "Fajta",
+    pl: "Odmiana",
+    pt: "Variedade",
+  },
+  pleaseSelect: {
+    de: "Bitte wählen",
+    en: "Please select",
+    hu: "Válassz",
+    pl: "Wybierz",
+    pt: "Selecionar",
+  },
+  addNew: {
+    de: "Neu",
+    en: "New",
+    hu: "Új",
+    pl: "Nowy",
+    pt: "Novo",
+  },
+  addNewAria: {
+    de: "Neuen Wert hinzufügen",
+    en: "Add a new value",
+    hu: "Új érték hozzáadása",
+    pl: "Dodaj nową wartość",
+    pt: "Adicionar novo valor",
+  },
+  startWeighing: {
+    de: "Weiter zum Wiegen",
+    en: "Start weighing",
+    hu: "Tovább a méréshez",
+    pl: "Przejdź do ważenia",
+    pt: "Continuar para a pesagem",
+  },
+
+  // --- Wiegen ---
+  grossWeight: {
+    de: "Gewicht brutto (kg)",
+    en: "Gross weight (kg)",
+    hu: "Bruttó súly (kg)",
+    pl: "Waga brutto (kg)",
+    pt: "Peso bruto (kg)",
+  },
+  crateCount: {
+    de: "Anzahl Kisten",
+    en: "Number of crates",
+    hu: "Ládák száma",
+    pl: "Liczba skrzynek",
+    pt: "Número de caixas",
+  },
+  next: {
+    de: "Weiter",
+    en: "Next",
+    hu: "Tovább",
+    pl: "Dalej",
+    pt: "Continuar",
+  },
+  overview: {
+    de: "Übersicht",
+    en: "Overview",
+    hu: "Áttekintés",
+    pl: "Przegląd",
+    pt: "Lista",
+  },
+  changeVariety: {
+    de: "Sorte wechseln",
+    en: "Change variety",
+    hu: "Fajta váltása",
+    pl: "Zmień odmianę",
+    pt: "Mudar variedade",
+  },
+
+  // --- Zustände ---
+  saving: {
+    de: "wird gespeichert",
+    en: "saving",
+    hu: "mentés folyamatban",
+    pl: "zapisywanie",
+    pt: "a guardar",
+  },
+  saved: {
+    de: "gespeichert",
+    en: "saved",
+    hu: "mentve",
+    pl: "zapisano",
+    pt: "guardado",
+  },
+  errorLabel: {
+    de: "Fehler",
+    en: "Error",
+    hu: "Hiba",
+    pl: "Błąd",
+    pt: "Erro",
+  },
+  tryAgain: {
+    de: "Erneut versuchen",
+    en: "Try again",
+    hu: "Újra",
+    pl: "Ponów",
+    pt: "Tentar novamente",
+  },
+  waitingForConnection: {
+    de: "Kein Netz. Wird automatisch gesendet.",
+    en: "No connection. Will be sent automatically.",
+    hu: "Nincs kapcsolat. Automatikusan elküldjük.",
+    pl: "Brak połączenia. Zostanie wysłane automatycznie.",
+    pt: "Sem ligação. Será enviado automaticamente.",
+  },
+  connectionFailed: {
+    de: "Verbindung zum Sheet fehlgeschlagen",
+    en: "Connection to the sheet failed",
+    hu: "A táblázat nem érhető el",
+    pl: "Brak połączenia z arkuszem",
+    pt: "Falha na ligação à folha",
+  },
+
+  // --- Plausibilitätsprüfung ---
+  unusualTitle: {
+    de: "Gewicht wirkt ungewöhnlich",
+    en: "Weight looks unusual",
+    hu: "A súly szokatlan",
+    pl: "Waga wygląda nietypowo",
+    pt: "O peso parece invulgar",
+  },
+  unusualUsual: {
+    de: "Üblich pro Kiste: {von} bis {bis} kg",
+    en: "Usual per crate: {von} to {bis} kg",
+    hu: "Szokásos ládánként: {von} és {bis} kg között",
+    pl: "Zwykle na skrzynkę: {von} do {bis} kg",
+    pt: "Habitual por caixa: {von} a {bis} kg",
+  },
+  unusualYours: {
+    de: "Deine Eingabe pro Kiste: {ist} kg",
+    en: "Your entry per crate: {ist} kg",
+    hu: "A beírt érték ládánként: {ist} kg",
+    pl: "Twój wpis na skrzynkę: {ist} kg",
+    pt: "O seu valor por caixa: {ist} kg",
+  },
+  unusualQuestion: {
+    de: "Ist die Anzahl Kisten richtig?",
+    en: "Is the number of crates correct?",
+    hu: "Helyes a ládák száma?",
+    pl: "Czy liczba skrzynek jest poprawna?",
+    pt: "O número de caixas está correto?",
+  },
+  saveAnyway: {
+    de: "Ja, trotzdem speichern",
+    en: "Yes, save anyway",
+    hu: "Igen, mentés így",
+    pl: "Tak, zapisz",
+    pt: "Sim, guardar assim",
+  },
+  fixEntry: {
+    de: "Eingabe korrigieren",
+    en: "Correct the entry",
+    hu: "Bejegyzés javítása",
+    pl: "Popraw wpis",
+    pt: "Corrigir o valor",
+  },
+  impossibleTitle: {
+    de: "Eingabe nicht möglich",
+    en: "Entry not possible",
+    hu: "Az érték nem lehetséges",
+    pl: "Wpis niemożliwy",
+    pt: "Valor impossível",
+  },
+  impossibleMsg: {
+    de: "Das Gewicht ist zu klein für diese Anzahl Kisten. Bitte prüfe beide Werte.",
+    en: "The weight is too low for this number of crates. Please check both values.",
+    hu: "A súly túl kicsi ennyi ládához. Kérlek, ellenőrizd mindkét értéket.",
+    pl: "Waga jest za mała dla tej liczby skrzynek. Sprawdź oba wpisy.",
+    pt: "O peso é demasiado baixo para este número de caixas. Verifique os dois valores.",
+  },
+  ok: {
+    de: "OK",
+    en: "OK",
+    hu: "OK",
+    pl: "OK",
+    pt: "OK",
+  },
+
+  // --- Übersicht ---
+  backToWeighing: {
+    de: "Zurück zum Wiegen",
+    en: "Back to weighing",
+    hu: "Vissza a méréshez",
+    pl: "Powrót do ważenia",
+    pt: "Voltar à pesagem",
+  },
+  backToOverview: {
+    de: "Zurück zur Übersicht",
+    en: "Back to the overview",
+    hu: "Vissza az áttekintéshez",
+    pl: "Powrót do przeglądu",
+    pt: "Voltar à lista",
+  },
+  settings: {
+    de: "Einstellungen",
+    en: "Settings",
+    hu: "Beállítások",
+    pl: "Ustawienia",
+    pt: "Definições",
+  },
+  noPallets: {
+    de: "Noch keine Palette erfasst.",
+    en: "No pallets saved yet.",
+    hu: "Még nincs mentett paletta.",
+    pl: "Brak zapisanych palet.",
+    pt: "Ainda não há paletes guardadas.",
+  },
+  cratesLabel: {
+    de: "Kisten",
+    en: "Crates",
+    hu: "Ládák",
+    pl: "Skrzynki",
+    pt: "Caixas",
+  },
+  perCrate: {
+    de: "kg pro Kiste",
+    en: "kg per crate",
+    hu: "kg ládánként",
+    pl: "kg na skrzynkę",
+    pt: "kg por caixa",
+  },
+  edit: {
+    de: "Bearbeiten",
+    en: "Edit",
+    hu: "Szerkesztés",
+    pl: "Edytuj",
+    pt: "Editar",
+  },
+  deleteLabel: {
+    de: "Löschen",
+    en: "Delete",
+    hu: "Törlés",
+    pl: "Usuń",
+    pt: "Eliminar",
+  },
+  save: {
+    de: "Speichern",
+    en: "Save",
+    hu: "Mentés",
+    pl: "Zapisz",
+    pt: "Guardar",
+  },
+  cancel: {
+    de: "Abbrechen",
+    en: "Cancel",
+    hu: "Mégse",
+    pl: "Anuluj",
+    pt: "Cancelar",
+  },
+  weightKg: {
+    de: "Gewicht (kg)",
+    en: "Weight (kg)",
+    hu: "Súly (kg)",
+    pl: "Waga (kg)",
+    pt: "Peso (kg)",
+  },
+  deletePalletTitle: {
+    de: "Palette löschen?",
+    en: "Delete pallet?",
+    hu: "Törlöd a palettát?",
+    pl: "Usunąć paletę?",
+    pt: "Eliminar palete?",
+  },
+  deletePalletMsg: {
+    de: "Die Palette wird aus dem Sheet entfernt. Das kann nicht rückgängig gemacht werden.",
+    en: "The pallet will be removed from the sheet. This cannot be undone.",
+    hu: "A paletta törlődik a táblázatból. Ez nem vonható vissza.",
+    pl: "Paleta zostanie usunięta z arkusza. Nie można tego cofnąć.",
+    pt: "A palete será removida da folha. Não é possível anular.",
+  },
+  yesDelete: {
+    de: "Ja, löschen",
+    en: "Yes, delete",
+    hu: "Igen, törlés",
+    pl: "Tak, usuń",
+    pt: "Sim, eliminar",
+  },
+
+  // --- Neue Anlieferung / rückwirkende Änderung ---
+  startNewDelivery: {
+    de: "Neue Anlieferung starten",
+    en: "Start a new delivery",
+    hu: "Új beszállítás indítása",
+    pl: "Rozpocznij nową dostawę",
+    pt: "Iniciar nova entrega",
+  },
+  startNewDeliveryTitle: {
+    de: "Neue Anlieferung starten?",
+    en: "Start a new delivery?",
+    hu: "Új beszállítás indítása?",
+    pl: "Rozpocząć nową dostawę?",
+    pt: "Iniciar nova entrega?",
+  },
+  startNewDeliveryMsg: {
+    de: "Die erfassten Paletten bleiben im Sheet. Feld und Sorte werden zurückgesetzt.",
+    en: "The saved pallets stay in the sheet. Field and variety are reset.",
+    hu: "A mentett paletták a táblázatban maradnak. A terület és a fajta törlődik.",
+    pl: "Zapisane palety zostają w arkuszu. Pole i odmiana zostaną wyczyszczone.",
+    pt: "As paletes guardadas ficam na folha. Campo e variedade são apagados.",
+  },
+  yesNewDelivery: {
+    de: "Ja, neue Anlieferung",
+    en: "Yes, new delivery",
+    hu: "Igen, új beszállítás",
+    pl: "Tak, nowa dostawa",
+    pt: "Sim, nova entrega",
+  },
+  retroTitle: {
+    de: "Erfasste Paletten auch ändern?",
+    en: "Change the saved pallets too?",
+    hu: "A mentett palettákat is módosítod?",
+    pl: "Zmienić też zapisane palety?",
+    pt: "Alterar também as paletes guardadas?",
+  },
+  retroMsg: {
+    de: "Sollen die neuen Angaben auch für die schon gespeicherten Paletten gelten?",
+    en: "Should the new details also apply to the pallets already saved?",
+    hu: "Az új adatok a már mentett palettákra is érvényesek legyenek?",
+    pl: "Czy nowe dane mają dotyczyć także już zapisanych palet?",
+    pt: "Os novos dados também devem aplicar-se às paletes já guardadas?",
+  },
+  yesChangeAll: {
+    de: "Ja, alle ändern",
+    en: "Yes, change all",
+    hu: "Igen, mindet",
+    pl: "Tak, zmień wszystkie",
+    pt: "Sim, alterar todas",
+  },
+  noOnlyNew: {
+    de: "Nein, nur neue",
+    en: "No, only new ones",
+    hu: "Nem, csak az újakat",
+    pl: "Nie, tylko nowe",
+    pt: "Não, só as novas",
+  },
+
+  // --- Datumswechsel ---
+  dateChangedTitle: {
+    de: "Datum prüfen",
+    en: "Check the date",
+    hu: "Ellenőrizd a dátumot",
+    pl: "Sprawdź datę",
+    pt: "Verificar a data",
+  },
+  dateChangedMsg: {
+    de: "Die Anlieferung läuft noch mit dem Datum {alt}. Heute ist {neu}.",
+    en: "The delivery still uses the date {alt}. Today is {neu}.",
+    hu: "A beszállítás dátuma még {alt}. Ma {neu} van.",
+    pl: "Dostawa ma jeszcze datę {alt}. Dziś jest {neu}.",
+    pt: "A entrega ainda tem a data {alt}. Hoje é {neu}.",
+  },
+  useToday: {
+    de: "Auf heute setzen",
+    en: "Set to today",
+    hu: "Mai dátum",
+    pl: "Ustaw na dziś",
+    pt: "Definir para hoje",
+  },
+  keepDate: {
+    de: "Datum behalten",
+    en: "Keep the date",
+    hu: "Dátum megtartása",
+    pl: "Zachowaj datę",
+    pt: "Manter a data",
+  },
+} as const;
+
+export type TextKey = keyof typeof TEXTS;
+
+export function t(lang: Lang, key: TextKey, params?: Record<string, string | number>): string {
+  const entry = TEXTS[key] as Record<Lang, string>;
+  let text = entry[lang] ?? entry[DEFAULT_LANG];
+  if (params) {
+    for (const [name, value] of Object.entries(params)) {
+      text = text.replaceAll(`{${name}}`, String(value));
+    }
+  }
+  return text;
+}
+
+export function localeOf(lang: Lang): string {
+  return LANGUAGES.find((l) => l.code === lang)?.locale ?? "de-CH";
+}
+
+/** Zahl in der Schreibweise der gewählten Sprache (Komma bzw. Punkt als Dezimaltrennzeichen). */
+export function formatNumber(lang: Lang, value: number, digits = 2): string {
+  return new Intl.NumberFormat(localeOf(lang), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
+/** Datum lesbar in der gewählten Sprache, z.B. 17.08.2026 bzw. 17/08/2026. */
+export function formatDate(lang: Lang, iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Intl.DateTimeFormat(localeOf(lang), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(y, m - 1, d));
+}

@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { gewichtProKiste } from "@/lib/constants";
+import { formatDate, formatNumber, t, type Lang } from "@/lib/i18n";
 import type { PaletteEntry, SessionConfig } from "@/lib/types";
 import { ComboField } from "./ComboField";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SessionConfigForm } from "./SessionConfigForm";
 
 interface OverviewScreenProps {
+  lang: Lang;
   config: SessionConfig;
   entries: PaletteEntry[];
   personen: string[];
@@ -20,6 +22,7 @@ interface OverviewScreenProps {
   onRemoveEntry: (id: string) => void;
   onBack: () => void;
   onStartNewSession: () => void;
+  onOpenLanguage: () => void;
 }
 
 function diffConfig(a: SessionConfig, b: SessionConfig): Partial<SessionConfig> {
@@ -31,6 +34,7 @@ function diffConfig(a: SessionConfig, b: SessionConfig): Partial<SessionConfig> 
 }
 
 export function OverviewScreen({
+  lang,
   config,
   entries,
   personen,
@@ -43,6 +47,7 @@ export function OverviewScreen({
   onRemoveEntry,
   onBack,
   onStartNewSession,
+  onOpenLanguage,
 }: OverviewScreenProps) {
   const [mode, setMode] = useState<"list" | "settings">("list");
   const [pendingConfig, setPendingConfig] = useState<Partial<SessionConfig> | null>(null);
@@ -72,25 +77,34 @@ export function OverviewScreen({
           onClick={() => setMode("list")}
           className="self-start text-lg font-medium text-neutral-500"
         >
-          ← Zurück zur Übersicht
+          ← {t(lang, "backToOverview")}
         </button>
         <SessionConfigForm
+          lang={lang}
           config={config}
           personen={personen}
           felder={felder}
           sorten={sorten}
           onAddOption={onAddOption}
           onSubmit={handleConfigSubmit}
-          submitLabel="Speichern"
-          title="Einstellungen"
-        />
+          submitLabel={t(lang, "save")}
+          title={t(lang, "settings")}
+        >
+          <button
+            type="button"
+            onClick={onOpenLanguage}
+            className="rounded-xl border border-neutral-300 bg-white py-3.5 text-lg font-medium text-neutral-700 active:bg-neutral-50"
+          >
+            🌐 {t(lang, "language")}
+          </button>
+        </SessionConfigForm>
 
         {pendingConfig && (
           <ConfirmDialog
-            title="Bereits erfasste Paletten auch anpassen?"
-            message={`Es sind bereits ${entries.length} Palette(n) in dieser Anlieferung erfasst.\n\nSollen die geänderten Angaben auch auf diese bereits erfassten Paletten übernommen werden?`}
-            confirmLabel="Ja, alle anpassen"
-            cancelLabel="Nein, nur ab jetzt"
+            title={t(lang, "retroTitle")}
+            message={t(lang, "retroMsg")}
+            confirmLabel={t(lang, "yesChangeAll")}
+            cancelLabel={t(lang, "noOnlyNew")}
             onConfirm={() => {
               onApplyConfigChange(pendingConfig, true);
               setPendingConfig(null);
@@ -111,28 +125,29 @@ export function OverviewScreen({
     <div className="flex flex-1 flex-col gap-4">
       <div className="flex items-center justify-between">
         <button type="button" onClick={onBack} className="text-lg font-medium text-neutral-500">
-          ← Zurück zum Wiegen
+          ← {t(lang, "backToWeighing")}
         </button>
         <button
           type="button"
           onClick={() => setMode("settings")}
           className="rounded-xl border border-neutral-300 px-3 py-2 text-base font-medium text-neutral-700"
         >
-          ⚙ Einstellungen
+          ⚙ {t(lang, "settings")}
         </button>
       </div>
 
       <div className="rounded-xl bg-neutral-100 px-4 py-3 text-sm text-neutral-600">
-        {config.datum} · {config.person} · {config.feld} · {config.sorte}
+        {formatDate(lang, config.datum)} · {config.person} · {config.feld} · {config.sorte}
       </div>
 
       <div className="flex flex-col gap-3">
         {sorted.length === 0 && (
-          <p className="py-8 text-center text-neutral-400">Noch keine Palette erfasst.</p>
+          <p className="py-8 text-center text-neutral-400">{t(lang, "noPallets")}</p>
         )}
         {sorted.map((entry) => (
           <PaletteCard
             key={entry.id}
+            lang={lang}
             entry={entry}
             felder={felder}
             sorten={sorten}
@@ -149,15 +164,15 @@ export function OverviewScreen({
         onClick={() => setConfirmNewSession(true)}
         className="mt-4 rounded-xl border border-neutral-300 py-3 text-lg font-medium text-neutral-600"
       >
-        Neue Anlieferung starten
+        {t(lang, "startNewDelivery")}
       </button>
 
       {confirmNewSession && (
         <ConfirmDialog
-          title="Neue Anlieferung starten?"
-          message="Die bisherigen Paletten bleiben im Sheet gespeichert, werden hier aber nicht mehr angezeigt. Feld und Sorte werden zurückgesetzt."
-          confirmLabel="Ja, neue Anlieferung"
-          cancelLabel="Abbrechen"
+          title={t(lang, "startNewDeliveryTitle")}
+          message={t(lang, "startNewDeliveryMsg")}
+          confirmLabel={t(lang, "yesNewDelivery")}
+          cancelLabel={t(lang, "cancel")}
           onConfirm={() => {
             onStartNewSession();
             setConfirmNewSession(false);
@@ -170,18 +185,19 @@ export function OverviewScreen({
   );
 }
 
-function statusLabel(entry: PaletteEntry): { text: string; className: string } {
+function statusLabel(lang: Lang, entry: PaletteEntry): { text: string; className: string } {
   switch (entry.syncStatus) {
     case "syncing":
-      return { text: "speichert…", className: "text-orange-600" };
+      return { text: t(lang, "saving"), className: "text-orange-600" };
     case "error":
-      return { text: "Fehler", className: "text-red-600" };
+      return { text: t(lang, "errorLabel"), className: "text-red-600" };
     default:
-      return { text: "gespeichert", className: "text-green-700" };
+      return { text: t(lang, "saved"), className: "text-green-700" };
   }
 }
 
 interface PaletteCardProps {
+  lang: Lang;
   entry: PaletteEntry;
   felder: string[];
   sorten: string[];
@@ -192,6 +208,7 @@ interface PaletteCardProps {
 }
 
 function PaletteCard({
+  lang,
   entry,
   felder,
   sorten,
@@ -207,7 +224,7 @@ function PaletteCard({
   const [feld, setFeld] = useState(entry.feld);
   const [sorte, setSorte] = useState(entry.sorte);
 
-  const status = statusLabel(entry);
+  const status = statusLabel(lang, entry);
   const kgProKiste = gewichtProKiste(entry.gewichtBrutto, entry.anzahlKisten);
   const busy = entry.syncStatus === "syncing";
 
@@ -223,21 +240,30 @@ function PaletteCard({
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className="text-lg font-semibold">
-          {entry.anzahlKisten} Kisten · {entry.gewichtBrutto} kg
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-lg font-semibold tabular-nums">
+          {formatNumber(lang, entry.gewichtBrutto, 0)} kg
         </div>
         <span className={`text-sm font-medium ${status.className}`}>{status.text}</span>
       </div>
+      <div className="text-sm text-neutral-500 tabular-nums">
+        {t(lang, "cratesLabel")}: {entry.anzahlKisten} · {formatNumber(lang, kgProKiste, 2)}{" "}
+        {t(lang, "perCrate")}
+      </div>
       <div className="text-sm text-neutral-500">
-        {entry.sorte} · {entry.feld} · {kgProKiste.toFixed(2)} kg/Kiste
+        {entry.sorte} · {entry.feld}
       </div>
 
       {entry.syncStatus === "error" && (
-        <div className="mt-2 flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          <span>{entry.syncError ?? "Synchronisierung fehlgeschlagen"}</span>
-          <button type="button" onClick={onRetry} className="font-semibold underline">
-            Erneut versuchen
+        <div className="mt-2 flex flex-col gap-1 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>{t(lang, "waitingForConnection")}</span>
+          {/* Technische Ursache klein dazu - hilft bei der Fehlersuche, ohne die
+              wiegende Person zu verunsichern. */}
+          {entry.syncError && (
+            <span className="text-xs text-red-500/80">{entry.syncError}</span>
+          )}
+          <button type="button" onClick={onRetry} className="self-start font-semibold underline">
+            {t(lang, "tryAgain")}
           </button>
         </div>
       )}
@@ -246,8 +272,11 @@ function PaletteCard({
         <div className="mt-3 flex flex-col gap-3 border-t border-neutral-100 pt-3">
           <div className="flex gap-2">
             <div className="flex flex-1 flex-col gap-1">
-              <label className="text-xs font-medium text-neutral-500">Kisten</label>
+              <label className="text-xs font-medium text-neutral-500" htmlFor={`k-${entry.id}`}>
+                {t(lang, "cratesLabel")}
+              </label>
               <input
+                id={`k-${entry.id}`}
                 type="number"
                 inputMode="numeric"
                 value={kisten}
@@ -256,8 +285,11 @@ function PaletteCard({
               />
             </div>
             <div className="flex flex-1 flex-col gap-1">
-              <label className="text-xs font-medium text-neutral-500">Gewicht (kg)</label>
+              <label className="text-xs font-medium text-neutral-500" htmlFor={`g-${entry.id}`}>
+                {t(lang, "weightKg")}
+              </label>
               <input
+                id={`g-${entry.id}`}
                 type="number"
                 inputMode="decimal"
                 value={gewicht}
@@ -267,7 +299,8 @@ function PaletteCard({
             </div>
           </div>
           <ComboField
-            label="Feld"
+            lang={lang}
+            label={t(lang, "field")}
             value={feld}
             options={felder}
             onChange={(v) => {
@@ -276,7 +309,8 @@ function PaletteCard({
             }}
           />
           <ComboField
-            label="Sorte"
+            lang={lang}
+            label={t(lang, "variety")}
             value={sorte}
             options={sorten}
             onChange={(v) => {
@@ -290,14 +324,14 @@ function PaletteCard({
               onClick={save}
               className="flex-1 rounded-lg bg-orange-600 py-2.5 font-semibold text-white"
             >
-              Speichern
+              {t(lang, "save")}
             </button>
             <button
               type="button"
               onClick={() => setEditing(false)}
               className="flex-1 rounded-lg border border-neutral-300 py-2.5 font-medium text-neutral-600"
             >
-              Abbrechen
+              {t(lang, "cancel")}
             </button>
           </div>
         </div>
@@ -309,7 +343,7 @@ function PaletteCard({
             onClick={() => setEditing(true)}
             className="flex-1 rounded-lg border border-neutral-300 py-2 text-sm font-medium text-neutral-700 disabled:opacity-40"
           >
-            Bearbeiten
+            {t(lang, "edit")}
           </button>
           <button
             type="button"
@@ -317,17 +351,17 @@ function PaletteCard({
             onClick={() => setConfirmDelete(true)}
             className="flex-1 rounded-lg border border-red-200 py-2 text-sm font-medium text-red-600 disabled:opacity-40"
           >
-            Löschen
+            {t(lang, "deleteLabel")}
           </button>
         </div>
       )}
 
       {confirmDelete && (
         <ConfirmDialog
-          title="Palette löschen?"
-          message="Diese Palette wird aus dem Sheet entfernt. Das kann nicht rückgängig gemacht werden."
-          confirmLabel="Ja, löschen"
-          cancelLabel="Abbrechen"
+          title={t(lang, "deletePalletTitle")}
+          message={t(lang, "deletePalletMsg")}
+          confirmLabel={t(lang, "yesDelete")}
+          cancelLabel={t(lang, "cancel")}
           onConfirm={() => {
             onRemove();
             setConfirmDelete(false);

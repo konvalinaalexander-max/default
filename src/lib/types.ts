@@ -36,7 +36,9 @@ export interface ReferenceData {
 }
 
 export interface SorteStats {
-  mittelwertProKiste: number;
-  stddevProKiste: number;
+  /** Median statt Mittelwert: unempfindlich gegen einzelne Fehleingaben im Verlauf. */
+  medianProKiste: number;
+  /** Mittlere absolute Abweichung vom Median. */
+  madProKiste: number;
   anzahlProben: number;
 }

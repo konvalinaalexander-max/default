@@ -1,43 +1,83 @@
 "use client";
 
 import { useState } from "react";
+import { formatDate, t } from "@/lib/i18n";
+import { useLanguage } from "@/lib/useLanguage";
 import { useReferenceData } from "@/lib/useReferenceData";
 import { useSession } from "@/lib/useSession";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { LanguagePicker } from "./LanguagePicker";
 import { OverviewScreen } from "./OverviewScreen";
 import { SessionConfigForm } from "./SessionConfigForm";
 import { WeighScreen } from "./WeighScreen";
 
 export function AppShell() {
+  const { lang, setLang } = useLanguage();
   const session = useSession();
   const ref = useReferenceData();
   const [view, setView] = useState<"wiegen" | "uebersicht">("wiegen");
+  const [sprachwahlOffen, setSprachwahlOffen] = useState(false);
+  const [datumHinweisWeg, setDatumHinweisWeg] = useState(false);
 
   const needsSetup = !session.config.person || !session.config.feld || !session.config.sorte;
-  const offeneAnzahl = session.entries.filter((e) => e.syncStatus === "syncing").length;
+
+  // Vor allem anderen die Sprache klären - ohne sie versteht die Person den Rest nicht.
+  if (!lang) {
+    return (
+      <Frame>
+        <LanguagePicker onSelect={setLang} />
+      </Frame>
+    );
+  }
+
+  if (sprachwahlOffen) {
+    return (
+      <Frame>
+        <LanguagePicker
+          current={lang}
+          headingLang={lang}
+          onSelect={(neu) => {
+            setLang(neu);
+            setSprachwahlOffen(false);
+          }}
+          onBack={() => setSprachwahlOffen(false)}
+        />
+      </Frame>
+    );
+  }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-1 flex-col px-4 py-4">
+    <Frame>
       {ref.error && (
         <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          Verbindung zum Sheet fehlgeschlagen: {ref.error}{" "}
+          {t(lang, "connectionFailed")}{" "}
           <button type="button" onClick={ref.reload} className="font-semibold underline">
-            Erneut versuchen
+            {t(lang, "tryAgain")}
           </button>
         </div>
       )}
 
       {needsSetup ? (
         <SessionConfigForm
+          lang={lang}
           config={session.config}
           personen={ref.personen}
           felder={ref.felder}
           sorten={ref.sorten}
           onAddOption={ref.addLocalOption}
           onSubmit={(cfg) => session.applyConfigChange(cfg, false)}
-          submitLabel="Weiter zum Wiegen"
-          title="Neue Anlieferung"
-          subtitle="Diese Angaben gelten für alle Paletten dieser Anlieferung. Sie lassen sich später jederzeit korrigieren."
-        />
+          submitLabel={t(lang, "startWeighing")}
+          title={t(lang, "newDeliveryTitle")}
+          subtitle={t(lang, "setupHint")}
+        >
+          <button
+            type="button"
+            onClick={() => setSprachwahlOffen(true)}
+            className="rounded-xl border border-neutral-300 bg-white py-3.5 text-lg font-medium text-neutral-700 active:bg-neutral-50"
+          >
+            🌐 {t(lang, "language")}
+          </button>
+        </SessionConfigForm>
       ) : view === "wiegen" ? (
         <>
           <div className="mb-2 flex justify-end">
@@ -46,19 +86,27 @@ export function AppShell() {
               onClick={() => setView("uebersicht")}
               className="rounded-lg px-3 py-2 text-base font-medium text-neutral-500"
             >
-              📋 Übersicht ({session.entries.length})
+              📋 {t(lang, "overview")} ({session.entries.length})
             </button>
           </div>
           <WeighScreen
+            lang={lang}
             sorte={session.config.sorte}
             feld={session.config.feld}
+            sorten={ref.sorten}
             sortenStats={ref.sortenStats}
-            offeneAnzahl={offeneAnzahl}
+            offeneAnzahl={session.offeneAnzahl}
             onSave={session.addEntry}
+            onChangeSorte={(sorte) => {
+              ref.addLocalOption("sorten", sorte);
+              // Nur für neue Paletten - die bereits erfassten behalten ihre Sorte.
+              session.applyConfigChange({ sorte }, false);
+            }}
           />
         </>
       ) : (
         <OverviewScreen
+          lang={lang}
           config={session.config}
           entries={session.entries}
           personen={ref.personen}
@@ -71,8 +119,35 @@ export function AppShell() {
           onRemoveEntry={session.removeEntry}
           onBack={() => setView("wiegen")}
           onStartNewSession={session.startNewSession}
+          onOpenLanguage={() => setSprachwahlOffen(true)}
         />
       )}
+
+      {/* Handy lag über Nacht offen: das Datum der Anlieferung stimmt dann nicht mehr. */}
+      {session.datumIstVeraltet && !datumHinweisWeg && (
+        <ConfirmDialog
+          title={t(lang, "dateChangedTitle")}
+          message={t(lang, "dateChangedMsg", {
+            alt: formatDate(lang, session.config.datum),
+            neu: formatDate(lang, session.heute),
+          })}
+          confirmLabel={t(lang, "useToday")}
+          cancelLabel={t(lang, "keepDate")}
+          onConfirm={() => {
+            session.setDatum(session.heute);
+            setDatumHinweisWeg(true);
+          }}
+          onCancel={() => setDatumHinweisWeg(true)}
+        />
+      )}
+    </Frame>
+  );
+}
+
+function Frame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-1 flex-col px-4 py-4">
+      {children}
     </div>
   );
 }

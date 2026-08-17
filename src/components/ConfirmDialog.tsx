@@ -5,7 +5,8 @@ interface ConfirmDialogProps {
   message: string;
   tone?: "warning" | "default";
   confirmLabel: string;
-  cancelLabel: string;
+  /** Weggelassen = Hinweis mit nur einer Schaltfläche. */
+  cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -24,6 +25,8 @@ export function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
       <div
+        role="dialog"
+        aria-modal="true"
         className={`w-full max-w-sm rounded-2xl border-2 bg-white p-5 shadow-xl ${
           isWarning ? "border-red-500" : "border-neutral-200"
         }`}
@@ -43,13 +46,15 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl border border-neutral-300 py-3.5 text-lg font-medium text-neutral-700"
-          >
-            {cancelLabel}
-          </button>
+          {cancelLabel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-xl border border-neutral-300 py-3.5 text-lg font-medium text-neutral-700"
+            >
+              {cancelLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { clearPalette, updatePalette } from "@/lib/googleSheets";
+import { deletePaletteRow, updatePalette } from "@/lib/googleSheets";
 import type { PaletteEntry } from "@/lib/types";
 
 export async function PATCH(
@@ -46,7 +46,7 @@ export async function DELETE(
     if (!Number.isInteger(sheetRow) || sheetRow < 2) {
       return NextResponse.json({ error: "Ungültige Zeilennummer" }, { status: 400 });
     }
-    await clearPalette(sheetRow);
+    await deletePaletteRow(sheetRow);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/paletten/[row] failed", err);
