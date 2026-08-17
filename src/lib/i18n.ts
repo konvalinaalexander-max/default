@@ -538,6 +538,15 @@ export function formatNumber(lang: Lang, value: number, digits = 2): string {
   }).format(value);
 }
 
+/**
+ * Menge ohne erzwungene Nachkommastellen: 393 bleibt 393, 393,5 bleibt 393,5.
+ * Wichtig beim Gewicht - eine feste Rundung auf 0 Stellen würde eine eingegebene
+ * halbe Kilo-Angabe in der Übersicht verschwinden lassen.
+ */
+export function formatMenge(lang: Lang, value: number): string {
+  return new Intl.NumberFormat(localeOf(lang), { maximumFractionDigits: 2 }).format(value);
+}
+
 /** Uhrzeit in der gewählten Sprache, z.B. 14:32. */
 export function formatTime(lang: Lang, timestamp: number): string {
   return new Intl.DateTimeFormat(localeOf(lang), {

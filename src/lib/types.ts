@@ -36,6 +36,11 @@ export interface ReferenceData {
   gebindearten: string[];
   // Erwarteter kg/Kiste-Bereich je Sorte, aus den bisherigen Sheet-Zeilen gelernt.
   sortenStats: Record<string, SorteStats>;
+  /**
+   * Dasselbe über alle Sorten zusammen. Dient als Ausgangspunkt für eine Sorte, zu der
+   * noch keine oder kaum eigene Werte vorliegen.
+   */
+  allgemeineStats: SorteStats | null;
 }
 
 export interface SorteStats {

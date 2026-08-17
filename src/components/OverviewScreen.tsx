@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { STANDARD_GEBINDEART, gewichtProKiste } from "@/lib/constants";
-import { formatDate, formatNumber, t, type Lang } from "@/lib/i18n";
+import { formatDate, formatMenge, formatNumber, t, type Lang } from "@/lib/i18n";
 import type { PaletteEntry, SessionConfig } from "@/lib/types";
 import { ComboField } from "./ComboField";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -10,6 +10,12 @@ import { SessionConfigForm } from "./SessionConfigForm";
 
 interface OverviewScreenProps {
   lang: Lang;
+  /**
+   * Wird von aussen gesteuert, damit die Einstellungen erhalten bleiben, während die
+   * Sprachwahl angezeigt wird - sonst stünde man danach wieder in der Liste.
+   */
+  mode: "list" | "settings";
+  onChangeMode: (mode: "list" | "settings") => void;
   config: SessionConfig;
   entries: PaletteEntry[];
   personen: string[];
@@ -35,6 +41,8 @@ function diffConfig(a: SessionConfig, b: SessionConfig): Partial<SessionConfig> 
 
 export function OverviewScreen({
   lang,
+  mode,
+  onChangeMode,
   config,
   entries,
   personen,
@@ -49,7 +57,6 @@ export function OverviewScreen({
   onStartNewSession,
   onOpenLanguage,
 }: OverviewScreenProps) {
-  const [mode, setMode] = useState<"list" | "settings">("list");
   const [pendingConfig, setPendingConfig] = useState<Partial<SessionConfig> | null>(null);
   const [confirmNewSession, setConfirmNewSession] = useState(false);
 
@@ -61,7 +68,7 @@ export function OverviewScreen({
    * Paletten ansehen. Über den Zurück-Knopf bleibt die Liste jederzeit erreichbar.
    */
   function zurueckAnsWiegen() {
-    setMode("list");
+    onChangeMode("list");
     onBack();
   }
 
@@ -84,7 +91,7 @@ export function OverviewScreen({
       <div className="flex flex-1 flex-col gap-4">
         <button
           type="button"
-          onClick={() => setMode("list")}
+          onClick={() => onChangeMode("list")}
           className="self-start text-lg font-medium text-neutral-500"
         >
           ← {t(lang, "backToOverview")}
@@ -118,11 +125,14 @@ export function OverviewScreen({
             onConfirm={() => {
               onApplyConfigChange(pendingConfig, true);
               setPendingConfig(null);
-              zurueckAnsWiegen();
+              // Rückwirkend geändert: in der Liste bleiben, damit sofort sichtbar ist,
+              // was sich an den bereits erfassten Paletten geändert hat.
+              onChangeMode("list");
             }}
             onCancel={() => {
               onApplyConfigChange(pendingConfig, false);
               setPendingConfig(null);
+              // Nur für neue Paletten: es geht direkt weiter mit Wiegen.
               zurueckAnsWiegen();
             }}
           />
@@ -133,14 +143,20 @@ export function OverviewScreen({
 
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={onBack} className="text-lg font-medium text-neutral-500">
-          ← {t(lang, "backToWeighing")}
-        </button>
+      <div className="flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={() => setMode("settings")}
-          className="rounded-xl border border-neutral-300 px-3 py-2 text-base font-medium text-neutral-700"
+          onClick={onBack}
+          className="min-w-0 text-left text-lg font-medium text-neutral-500"
+        >
+          ← {t(lang, "backToWeighing")}
+        </button>
+        {/* shrink-0 verhindert, dass der lange Zurück-Text den Einstellungen-Knopf
+            zusammenquetscht - in manchen Sprachen ist er deutlich länger. */}
+        <button
+          type="button"
+          onClick={() => onChangeMode("settings")}
+          className="shrink-0 whitespace-nowrap rounded-xl border border-neutral-300 px-3 py-2 text-base font-medium text-neutral-700"
         >
           ⚙ {t(lang, "settings")}
         </button>
@@ -251,10 +267,10 @@ function PaletteCard({
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="flex items-baseline justify-between gap-2">
-        <div className="text-lg font-semibold tabular-nums">
-          {formatNumber(lang, entry.gewichtBrutto, 0)} kg
+        <div className="min-w-0 text-lg font-semibold tabular-nums">
+          {formatMenge(lang, entry.gewichtBrutto)} kg
         </div>
-        <span className={`text-sm font-medium ${status.className}`}>{status.text}</span>
+        <span className={`shrink-0 text-sm font-medium ${status.className}`}>{status.text}</span>
       </div>
       <div className="text-sm text-neutral-500 tabular-nums">
         {t(lang, "cratesLabel")}: {entry.anzahlKisten} · {formatNumber(lang, kgProKiste, 2)}{" "}
@@ -291,8 +307,11 @@ function PaletteCard({
 
       {editing ? (
         <div className="mt-3 flex flex-col gap-3 border-t border-neutral-100 pt-3">
-          <div className="flex gap-2">
-            <div className="flex flex-1 flex-col gap-1">
+          {/* min-w-0 auf den Spalten und w-full auf den Feldern: ohne min-w-0 kann eine
+              flex-1-Spalte nicht unter die Mindestbreite eines Eingabefelds schrumpfen,
+              dadurch schob sich das zweite Feld bisher aus dem Bild. */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex min-w-0 flex-col gap-1">
               <label className="text-xs font-medium text-neutral-500" htmlFor={`k-${entry.id}`}>
                 {t(lang, "cratesLabel")}
               </label>
@@ -302,10 +321,10 @@ function PaletteCard({
                 inputMode="numeric"
                 value={kisten}
                 onChange={(e) => setKisten(e.target.value)}
-                className="rounded-lg border border-neutral-300 px-3 py-2 text-lg"
+                className="w-full min-w-0 rounded-lg border border-neutral-300 px-3 py-2 text-lg"
               />
             </div>
-            <div className="flex flex-1 flex-col gap-1">
+            <div className="flex min-w-0 flex-col gap-1">
               <label className="text-xs font-medium text-neutral-500" htmlFor={`g-${entry.id}`}>
                 {t(lang, "weightKg")}
               </label>
@@ -315,7 +334,7 @@ function PaletteCard({
                 inputMode="decimal"
                 value={gewicht}
                 onChange={(e) => setGewicht(e.target.value)}
-                className="rounded-lg border border-neutral-300 px-3 py-2 text-lg"
+                className="w-full min-w-0 rounded-lg border border-neutral-300 px-3 py-2 text-lg"
               />
             </div>
           </div>

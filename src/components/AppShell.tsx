@@ -15,7 +15,9 @@ export function AppShell() {
   const { lang, setLang } = useLanguage();
   const session = useSession();
   const ref = useReferenceData();
-  const [view, setView] = useState<"wiegen" | "uebersicht">("wiegen");
+  // Die Ansicht liegt hier und nicht in der Übersicht, damit sie das Anzeigen der
+  // Sprachwahl übersteht: nach der Sprachwahl geht es genau dort weiter.
+  const [view, setView] = useState<"wiegen" | "uebersicht" | "einstellungen">("wiegen");
   const [sprachwahlOffen, setSprachwahlOffen] = useState(false);
   const [datumHinweisWeg, setDatumHinweisWeg] = useState(false);
 
@@ -97,6 +99,7 @@ export function AppShell() {
             sorten={ref.sorten}
             gebindearten={ref.gebindearten}
             sortenStats={ref.sortenStats}
+            allgemeineStats={ref.allgemeineStats}
             offeneAnzahl={session.offeneAnzahl}
             onSave={session.addEntry}
             onChangeSorte={(sorte) => {
@@ -113,6 +116,8 @@ export function AppShell() {
       ) : (
         <OverviewScreen
           lang={lang}
+          mode={view === "einstellungen" ? "settings" : "list"}
+          onChangeMode={(m) => setView(m === "settings" ? "einstellungen" : "uebersicht")}
           config={session.config}
           entries={session.entries}
           personen={ref.personen}

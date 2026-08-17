@@ -16,6 +16,7 @@ interface WeighScreenProps {
   sorten: string[];
   gebindearten: string[];
   sortenStats: Record<string, SorteStats>;
+  allgemeineStats: SorteStats | null;
   offeneAnzahl: number;
   /** Das Gebinde wird immer mitgegeben, damit kein noch nicht übernommener Zustand greift. */
   onSave: (draft: { anzahlKisten: number; gewichtBrutto: number; gebindeart: string }) => void;
@@ -37,6 +38,7 @@ export function WeighScreen({
   sorten,
   gebindearten,
   sortenStats,
+  allgemeineStats,
   offeneAnzahl,
   onSave,
   onChangeSorte,
@@ -63,7 +65,12 @@ export function WeighScreen({
     const gewichtBrutto = zahl(gewicht);
     if (!anzahlKisten || !gewichtBrutto) return;
 
-    const check = pruefePlausibilitaet(gewichtBrutto, anzahlKisten, sortenStats[sorte]);
+    const check = pruefePlausibilitaet(
+      gewichtBrutto,
+      anzahlKisten,
+      sortenStats[sorte],
+      allgemeineStats
+    );
 
     if (check.status === "unmoeglich") {
       setDialog({ art: "unmoeglich" });
@@ -105,11 +112,13 @@ export function WeighScreen({
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className="flex flex-col items-center gap-1">
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center justify-center gap-2">
+          {/* Lange Sortennamen dürfen den Gebinde-Knopf nicht aus dem Bild schieben:
+              die Sorte schrumpft und kürzt notfalls ab, das Gebinde bleibt fest. */}
           <button
             type="button"
             onClick={() => setSortenwahlOffen(true)}
-            className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-lg font-semibold active:bg-neutral-50"
+            className="min-w-0 truncate rounded-xl border border-neutral-300 bg-white px-4 py-2 text-lg font-semibold active:bg-neutral-50"
           >
             {sorte} ▾
           </button>
@@ -119,7 +128,7 @@ export function WeighScreen({
             type="button"
             onClick={() => setGebindewahlOffen(true)}
             aria-label={t(lang, "changePackaging")}
-            className={`rounded-xl border px-3 py-2 text-lg font-semibold active:opacity-80 ${
+            className={`shrink-0 whitespace-nowrap rounded-xl border px-3 py-2 text-lg font-semibold active:opacity-80 ${
               gebindeAbweichend
                 ? "border-orange-500 bg-orange-100 text-orange-800"
                 : "border-neutral-300 bg-white text-neutral-500"

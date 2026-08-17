@@ -14,6 +14,7 @@ const EMPTY: ReferenceData = {
   // Der Standard ist immer wählbar, auch wenn das Sheet noch nicht erreichbar ist.
   gebindearten: [STANDARD_GEBINDEART],
   sortenStats: {},
+  allgemeineStats: null,
 };
 
 function mergeUnique(list: string[], extra: string[]): string[] {
@@ -74,6 +75,7 @@ export function useReferenceData() {
       localExtras.gebindearten
     ),
     sortenStats: data.sortenStats,
+    allgemeineStats: data.allgemeineStats,
     addLocalOption,
   };
 }

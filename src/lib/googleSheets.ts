@@ -10,7 +10,7 @@ import {
   gewichtProKiste,
   isoZuSheetDatum,
 } from "./constants";
-import { median, medianAbsoluteDeviation } from "./plausibility";
+import { fasseZusammen } from "./plausibility";
 import type { PaletteEntry, ReferenceData, SorteStats } from "./types";
 
 let cachedClient: sheets_v4.Sheets | null = null;
@@ -130,6 +130,7 @@ export async function getReferenceData(): Promise<ReferenceData> {
   ]);
 
   const proSorteWerte = new Map<string, number[]>();
+  const alleWerte: number[] = [];
   for (const r of rows) {
     const sorte = String(r.values[COLUMNS.sorte - 1] ?? "");
     const gewicht = Number(r.values[COLUMNS.gewichtBrutto - 1]);
@@ -139,19 +140,23 @@ export async function getReferenceData(): Promise<ReferenceData> {
     if (!Number.isFinite(wert) || wert <= 0) continue;
     if (!proSorteWerte.has(sorte)) proSorteWerte.set(sorte, []);
     proSorteWerte.get(sorte)!.push(wert);
+    alleWerte.push(wert);
   }
 
   const sortenStats: Record<string, SorteStats> = {};
   for (const [sorte, werte] of proSorteWerte) {
-    const med = median(werte);
-    sortenStats[sorte] = {
-      medianProKiste: med,
-      madProKiste: medianAbsoluteDeviation(werte, med),
-      anzahlProben: werte.length,
-    };
+    sortenStats[sorte] = fasseZusammen(werte);
   }
 
-  return { personen, felder, sorten, gebindearten, sortenStats };
+  return {
+    personen,
+    felder,
+    sorten,
+    gebindearten,
+    sortenStats,
+    // Grundlage für Sorten, zu denen noch keine eigenen Werte vorliegen.
+    allgemeineStats: alleWerte.length > 0 ? fasseZusammen(alleWerte) : null,
+  };
 }
 
 export interface SyncResult {

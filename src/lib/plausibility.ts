@@ -7,30 +7,54 @@ export interface PlausibilitaetsCheck {
   istWertProKiste: number;
   erwartetVon: number;
   erwartetBis: number;
-  /** true, wenn der Bereich aus den Sheet-Daten dieser Sorte gelernt wurde. */
-  ausVerlauf: boolean;
+  /** Worauf der Bereich beruht - nur zur Nachvollziehbarkeit, nicht für die Anzeige. */
+  grundlage: "sorte" | "gemischt" | "allgemein" | "notbereich";
 }
 
-/** Ab so vielen früheren Paletten wird der Bereich aus den echten Daten gelernt. */
-const MIN_PROBEN = 4;
-/** Der gelernte Bereich ist mindestens so breit (Anteil des Medians). */
-const MIN_RELATIVE_TOLERANZ = 0.18;
+/**
+ * Wie schnell die Werte der eigenen Sorte den allgemeinen Durchschnitt verdrängen.
+ * Bei so vielen eigenen Paletten zählen beide gleich stark; danach überwiegt die Sorte.
+ */
+const SORTE_UEBERNIMMT_AB = 4;
+/** Ab so vielen Zeilen im Sheet insgesamt gilt der allgemeine Durchschnitt als belastbar. */
+const MIN_ALLGEMEINE_PROBEN = 8;
+
+/** Mindestbreite des Bereichs, wenn die Sorte selbst gut belegt ist (Anteil der Mitte). */
+const TOLERANZ_SORTE_BEKANNT = 0.18;
+/** Mindestbreite, solange überwiegend der allgemeine Durchschnitt trägt - bewusst grosszügig. */
+const TOLERANZ_SORTE_NEU = 0.3;
+
 /** Umrechnung der mittleren absoluten Abweichung in eine Streuung wie bei der Standardabweichung. */
 const MAD_ZU_SIGMA = 1.4826;
-const SIGMA_FAKTOR = 2.5;
+/**
+ * Wie viele Streuungen breit der Bereich wird. Beim allgemeinen Durchschnitt niedriger,
+ * weil dessen Streuung nicht nur die Schwankung innerhalb einer Sorte enthält, sondern
+ * zusätzlich die Unterschiede zwischen den Sorten - sonst würde der Bereich zu weit.
+ */
+const SIGMA_FAKTOR_ALLGEMEIN = 1.8;
+const SIGMA_FAKTOR_SORTE = 2.5;
 
 /**
- * Notbereich, solange für eine Sorte noch keine Verlaufsdaten vorliegen.
- * Absichtlich sehr weit gefasst - er soll nur groteske Tippfehler abfangen
- * (fehlende oder zusätzliche Stelle), nicht normale Schwankungen.
+ * Letzter Notbereich, wenn das Sheet noch gar keine brauchbaren Zeilen enthält.
+ * Nur dann sehr weit gefasst - sobald irgendwelche Daten vorliegen, greift der
+ * allgemeine Durchschnitt und der Bereich wird deutlich enger.
  */
-const FALLBACK_VON_PRO_KISTE = 2;
-const FALLBACK_BIS_PRO_KISTE = 50;
+const NOTBEREICH_VON = 2;
+const NOTBEREICH_BIS = 50;
 
+/**
+ * Prüft eine Eingabe gegen den erwarteten Bereich pro Kiste.
+ *
+ * Der Bereich entsteht gleitend: Für eine neue Sorte zählt zunächst der Durchschnitt
+ * über alle Sorten (Kürbissorten liegen nicht extrem weit auseinander), mit grosszügiger
+ * Toleranz. Mit jeder erfassten Palette dieser Sorte verschiebt sich das Gewicht hin zu
+ * den eigenen Werten, bis der Bereich vollständig sortenspezifisch ist.
+ */
 export function pruefePlausibilitaet(
   gewichtBrutto: number,
   anzahlKisten: number,
-  stats: SorteStats | undefined
+  sorteStats: SorteStats | undefined,
+  allgemeineStats?: SorteStats | null
 ): PlausibilitaetsCheck {
   const istWertProKiste = gewichtProKiste(gewichtBrutto, anzahlKisten);
 
@@ -42,34 +66,79 @@ export function pruefePlausibilitaet(
       istWertProKiste,
       erwartetVon: 0,
       erwartetBis: 0,
-      ausVerlauf: false,
+      grundlage: "notbereich",
     };
   }
 
-  const gelernt = stats && stats.anzahlProben >= MIN_PROBEN;
-
-  const { von, bis } = gelernt
-    ? gelernterBereich(stats)
-    : { von: FALLBACK_VON_PRO_KISTE, bis: FALLBACK_BIS_PRO_KISTE };
+  const bereich = bestimmeBereich(sorteStats, allgemeineStats);
 
   return {
-    status: istWertProKiste < von || istWertProKiste > bis ? "warnung" : "ok",
+    status:
+      istWertProKiste < bereich.von || istWertProKiste > bereich.bis ? "warnung" : "ok",
     istWertProKiste,
-    erwartetVon: von,
-    erwartetBis: bis,
-    ausVerlauf: !!gelernt,
+    erwartetVon: bereich.von,
+    erwartetBis: bereich.bis,
+    grundlage: bereich.grundlage,
   };
 }
 
-function gelernterBereich(stats: SorteStats): { von: number; bis: number } {
-  const toleranz = Math.max(
-    stats.medianProKiste * MIN_RELATIVE_TOLERANZ,
-    stats.madProKiste * MAD_ZU_SIGMA * SIGMA_FAKTOR
-  );
+function bestimmeBereich(
+  sorteStats: SorteStats | undefined,
+  allgemeineStats?: SorteStats | null
+): { von: number; bis: number; grundlage: PlausibilitaetsCheck["grundlage"] } {
+  const eigeneProben = sorteStats?.anzahlProben ?? 0;
+  const allgemeinBrauchbar =
+    !!allgemeineStats &&
+    allgemeineStats.anzahlProben >= MIN_ALLGEMEINE_PROBEN &&
+    allgemeineStats.medianProKiste > 0;
+
+  // Nichts im Sheet und nichts zur Sorte: nur noch der weite Notbereich.
+  if (!allgemeinBrauchbar && eigeneProben === 0) {
+    return { von: NOTBEREICH_VON, bis: NOTBEREICH_BIS, grundlage: "notbereich" };
+  }
+
+  // Kein belastbarer Gesamtdurchschnitt, aber eigene Werte: dann nur diese.
+  if (!allgemeinBrauchbar && sorteStats) {
+    return {
+      ...spanneAus(
+        sorteStats.medianProKiste,
+        sorteStats.madProKiste,
+        TOLERANZ_SORTE_BEKANNT,
+        SIGMA_FAKTOR_SORTE
+      ),
+      grundlage: "sorte",
+    };
+  }
+
+  const allgemein = allgemeineStats!;
+
+  // Gleitender Übergang: je mehr eigene Paletten, desto stärker zählen sie. Bei
+  // eigeneProben = 0 ergibt das Gewicht 0, dann trägt allein der Gesamtdurchschnitt.
+  const gewicht = eigeneProben / (eigeneProben + SORTE_UEBERNIMMT_AB);
+  const eigenerMedian = sorteStats?.medianProKiste ?? 0;
+  const eigeneStreuung = sorteStats?.madProKiste ?? 0;
+
+  const mitte = gewicht * eigenerMedian + (1 - gewicht) * allgemein.medianProKiste;
+  const streuung = gewicht * eigeneStreuung + (1 - gewicht) * allgemein.madProKiste;
+  const relativeToleranz =
+    TOLERANZ_SORTE_BEKANNT + (1 - gewicht) * (TOLERANZ_SORTE_NEU - TOLERANZ_SORTE_BEKANNT);
+  const sigmaFaktor =
+    SIGMA_FAKTOR_ALLGEMEIN + gewicht * (SIGMA_FAKTOR_SORTE - SIGMA_FAKTOR_ALLGEMEIN);
+
   return {
-    von: Math.max(0, stats.medianProKiste - toleranz),
-    bis: stats.medianProKiste + toleranz,
+    ...spanneAus(mitte, streuung, relativeToleranz, sigmaFaktor),
+    grundlage: eigeneProben === 0 ? "allgemein" : gewicht >= 0.85 ? "sorte" : "gemischt",
   };
+}
+
+function spanneAus(
+  mitte: number,
+  streuung: number,
+  relativeToleranz: number,
+  sigmaFaktor: number
+) {
+  const toleranz = Math.max(mitte * relativeToleranz, streuung * MAD_ZU_SIGMA * sigmaFaktor);
+  return { von: Math.max(0, mitte - toleranz), bis: mitte + toleranz };
 }
 
 export function median(werte: number[]): number {
@@ -88,4 +157,14 @@ export function median(werte: number[]): number {
 export function medianAbsoluteDeviation(werte: number[], med: number): number {
   if (werte.length === 0) return 0;
   return median(werte.map((w) => Math.abs(w - med)));
+}
+
+/** Fasst eine Liste von kg-pro-Kiste-Werten zu Median und Streuung zusammen. */
+export function fasseZusammen(werte: number[]): SorteStats {
+  const med = median(werte);
+  return {
+    medianProKiste: med,
+    madProKiste: medianAbsoluteDeviation(werte, med),
+    anzahlProben: werte.length,
+  };
 }
