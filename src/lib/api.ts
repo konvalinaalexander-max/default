@@ -12,12 +12,49 @@ export function fetchReferenceData(): Promise<ReferenceData> {
   return fetch("/api/reference").then((res) => asJson<ReferenceData>(res));
 }
 
-export function createPalette(entry: PaletteEntry): Promise<{ sheetRow: number }> {
+/**
+ * @param istWiederholung Bei true prüft der Server zuerst, ob die Palette schon im Sheet
+ * steht. Nötig, weil eine verlorene Antwort auf einen erfolgreichen Schreibvorgang sonst
+ * zu einer zweiten identischen Zeile führt - und die würde in den Ertrag einfliessen.
+ */
+export function createPalette(
+  entry: PaletteEntry,
+  istWiederholung = false
+): Promise<{ sheetRow: number }> {
   return fetch("/api/paletten", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(entry),
+    body: JSON.stringify({ ...entry, istWiederholung }),
   }).then((res) => asJson<{ sheetRow: number }>(res));
+}
+
+/** Legt ein Schlag-Sorte-Paar in der Anbauplanung an. */
+export function createPlanung(
+  schlag: string,
+  sorte: string,
+  passwort: string
+): Promise<void> {
+  return fetch("/api/planung", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ schlag, sorte, passwort }),
+  })
+    .then((res) => asJson(res))
+    .then(() => undefined);
+}
+
+export interface EinrichtungsBericht {
+  erledigt: string[];
+  uebersprungen: string[];
+  formelSprache: "englisch" | "deutsch";
+}
+
+export function richteSheetEin(passwort: string): Promise<EinrichtungsBericht> {
+  return fetch("/api/einrichten", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ passwort }),
+  }).then((res) => asJson<EinrichtungsBericht>(res));
 }
 
 export function updatePaletteRow(sheetRow: number, entry: PaletteEntry): Promise<void> {
@@ -40,7 +77,7 @@ export function deletePaletteRow(sheetRow: number, entry: PaletteEntry): Promise
 }
 
 export function batchUpdateSessionFields(
-  updates: { sheetRow: number; datum: string; person: string; feld: string; sorte: string }[]
+  updates: { sheetRow: number; datum: string; person: string; schlag: string; sorte: string }[]
 ): Promise<void> {
   return fetch("/api/paletten/batch", {
     method: "PATCH",

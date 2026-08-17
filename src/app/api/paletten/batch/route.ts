@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { batchUpdateSessionFields } from "@/lib/googleSheets";
 
 interface BatchUpdateRequest {
-  updates: { sheetRow: number; datum: string; person: string; feld: string; sorte: string }[];
+  updates: { sheetRow: number; datum: string; person: string; schlag: string; sorte: string }[];
 }
 
 export async function PATCH(request: Request) {
@@ -17,7 +17,7 @@ export async function PATCH(request: Request) {
         u.sheetRow < 2 ||
         !u.datum ||
         !u.person ||
-        !u.feld ||
+        !u.schlag ||
         !u.sorte
       ) {
         return NextResponse.json({ error: "Ungültiges Update in Liste" }, { status: 400 });

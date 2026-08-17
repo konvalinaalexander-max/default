@@ -30,7 +30,7 @@ export function pruefePalette(body: unknown): PruefErgebnis {
   }
   for (const [name, wert] of [
     ["Person", e.person],
-    ["Feld", e.feld],
+    ["Schlag", e.schlag],
     ["Sorte", e.sorte],
     ["Gebindeart", e.gebindeart],
   ] as const) {

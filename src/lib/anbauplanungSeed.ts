@@ -1,0 +1,51 @@
+/**
+ * Die Anbauplanung 2026, wie sie der Betrieb geliefert hat.
+ *
+ * Wird ausschliesslich beim Einrichten verwendet, und nur wenn das Blatt noch leer ist.
+ * Danach ist das Tabellenblatt die einzige Quelle - hier wird nichts mehr nachgeführt,
+ * damit es keine zweite Wahrheit gibt, die mit der Zeit abweicht.
+ */
+export const ANBAUPLANUNG_SEED: [schlag: string, sorte: string][] = [
+  ["Illnau Bruno", "Orangita"],
+  ["Illnau Bruno", "Kaori Kuri"],
+  ["Illnau Bruno", "Mieluna"],
+  ["Illnau Gross", "Amoro"],
+  ["Illnau Gross", "Butterkin"],
+  ["Illnau Gross", "Bolp 5110"],
+  ["Illnau Gross", "Orangita"],
+  ["Illnau Gross", "Orange Summer"],
+  ["Illnau Gross", "Lekor"],
+  ["Illnau Gross", "Kaori Kuri"],
+  ["Illnau Gross", "Fictor"],
+  ["Negi Thalheim", "Tiana"],
+  ["Slowgrow Uster", "Tiana"],
+  ["Slowgrow Uster", "Butterkin"],
+  ["Slowgrow Uster", "Kaori Kuri"],
+  ["Slowgrow Uster", "Ker Madec"],
+  ["Slowgrow Uster", "Lekor"],
+  ["Slowgrow Uster", "Orangita"],
+  ["Slowgrow Uster", "Orange Summer"],
+  ["Gossau Eberhard", "Kaori Kuri"],
+  ["Gossau Eberhard", "Orangita"],
+  ["Gossau Eberhard", "Butterkin"],
+  ["Bonomo", "Tiana"],
+  ["Agasul Rüegg", "Mieluna"],
+  ["Agasul Rüegg", "Butterkin"],
+  ["Agasul Rüegg", "Amoro"],
+  ["Agasul Rüegg", "Tiana"],
+  ["Agasul Rüegg", "Fictor"],
+  ["Russikon BundB", "Orange Summer"],
+  ["Agasul Baumann", "Kaori Kuri"],
+  ["Rümlang Sauter", "Butterkin"],
+  ["Rümlang Sauter", "Tiana"],
+  ["Rümlang Sauter", "Kaori Kuri"],
+  ["Rümlang Keller", "Kaori Kuri"],
+  ["Rümlang Keller", "Mieluna"],
+  ["Daniel Böhler", "Tiana"],
+  ["Daniel Böhler", "Amoro"],
+  ["Daniel Böhler", "Kaori Kuri"],
+  ["Klaus Böhler", "Tiana"],
+  ["Klaus Böhler", "Amoro"],
+  ["Klaus Böhler", "Kaori Kuri"],
+  ["Andi Ball", "Tiana"]
+];

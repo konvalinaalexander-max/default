@@ -1,11 +1,81 @@
-// Tara-Werte aus dem bestehenden Sheet übernommen (Formel dort: =Gewicht-25-Kisten*1.5)
+/**
+ * Gewicht der Palette selbst. Wird zusammen mit dem Leergut vom Waagenwert abgezogen.
+ * Nicht nachgewogen - bei 295 Paletten macht 1 kg Abweichung rund 300 kg aus.
+ */
 export const PALETTE_TARA_KG = 25;
-export const KISTE_TARA_KG = 1.5;
+
+export interface Gebindeart {
+  name: string;
+  /** Leergewicht einer einzelnen leeren Kiste in kg. */
+  taraKg: number;
+}
+
+/**
+ * Die zulässigen Gebindearten mit ihrem Leergewicht, vom Betrieb angegeben.
+ * Vorher rechnete das Sheet für jede Zeile mit 1,5 kg - also auch für IFCO-Kisten,
+ * was das Netto verfälschte und über die Referenzwerte auch den Erwartungsbereich.
+ */
+export const GEBINDEARTEN: Gebindeart[] = [
+  { name: "G2", taraKg: 1.5 },
+  { name: "IFCO 6410", taraKg: 1.36 },
+  { name: "IFCO 6416", taraKg: 1.68 },
+  { name: "IFCO 6424", taraKg: 2.0 },
+];
+
+/**
+ * Passwort für das Anlegen neuer Schläge und Sorten.
+ *
+ * Wird bewusst im Browser geprüft und nicht auf dem Server: Ein neuer Schlag muss auch
+ * im Feld ohne Netz angelegt werden können. Damit steht das Passwort im Quelltext der
+ * App und ist für jemanden, der bewusst danach sucht, auffindbar. Es verhindert, dass
+ * aus Bequemlichkeit ein neuer Name getippt wird - mehr soll es nicht leisten.
+ */
+export const ADMIN_PASSWORT = "Sammy";
 
 export const STANDARD_ANZAHL_KISTEN = 32;
-export const STANDARD_GEBINDEART = "G2";
+export const STANDARD_GEBINDEART = GEBINDEARTEN[0].name;
 
-export const SHEET_NAME = process.env.GOOGLE_SHEET_TAB_NAME || "Tabellenblatt1";
+/**
+ * Leergewicht zu einer Gebindebezeichnung.
+ *
+ * Leer bedeutet Standardgebinde - so ist die Spalte im Sheet seit Beginn gemeint.
+ * Zusätzlich wird auf die Modellnummer geprüft, damit Altbestand wie
+ * "IFCO 6410 schwarz" richtig gerechnet wird und nicht auf den Standard zurückfällt.
+ */
+export function taraFuerGebinde(gebindeart?: string | null): number {
+  const gesucht = (gebindeart ?? "").trim();
+  if (!gesucht) return GEBINDEARTEN[0].taraKg;
+
+  const genau = GEBINDEARTEN.find((g) => g.name.toLowerCase() === gesucht.toLowerCase());
+  if (genau) return genau.taraKg;
+
+  const nummer = gesucht.match(/\b(6410|6416|6424)\b/);
+  if (nummer) {
+    const treffer = GEBINDEARTEN.find((g) => g.name.includes(nummer[1]));
+    if (treffer) return treffer.taraKg;
+  }
+
+  // Unbekannte Bezeichnung: kann nur aus Altbestand oder Handeingabe im Sheet stammen,
+  // da die App nur aus der Liste oben auswählen lässt.
+  return GEBINDEARTEN[0].taraKg;
+}
+
+/**
+ * Die drei Tabellenblätter. Bewusst fest verdrahtet und nicht über Umgebungsvariablen:
+ * Würde der Tab im Sheet umbenannt, ohne die Variable in Vercel nachzuziehen, fände die
+ * App gar nichts mehr. Eine noch gesetzte GOOGLE_SHEET_TAB_NAME wird ignoriert.
+ */
+export const JOURNAL_SHEET = "Ertragsjournal";
+export const PLAN_SHEET = "Anbauplanung Ertrag";
+export const REFERENZ_SHEET = "Referenzwerte";
+
+/**
+ * Blattnamen mit Leerzeichen müssen in Hochkommas stehen - sowohl in Formeln als auch in
+ * Bereichsangaben an die Schnittstelle. "Anbauplanung Ertrag" ist so ein Fall.
+ */
+export function blattRef(name: string): string {
+  return /[^A-Za-z0-9_]/.test(name) ? `'${name.replace(/'/g, "''")}'` : name;
+}
 
 /**
  * Schreibweise, in der das Datum ins Sheet geschrieben wird. Google Sheets liest den
@@ -37,28 +107,72 @@ export function sheetDatumZuIso(rohwert: unknown): string {
   return text;
 }
 
-// Reihenfolge & Bedeutung der Spalten im Sheet (1-indexiert, A=1)
+// Reihenfolge & Bedeutung der Spalten im Ertragsjournal (1-indexiert, A=1).
+// Die App liest und schreibt nach Position, nicht nach Spaltenüberschrift -
+// Überschriften dürfen also umbenannt werden, ohne dass etwas kaputtgeht.
 export const COLUMNS = {
   datum: 1, // A
   person: 2, // B
-  feld: 3, // C
+  schlag: 3, // C
   sorte: 4, // D
   gewichtBrutto: 5, // E
   anzahlKisten: 6, // F
   gebindeart: 7, // G
   bemerkung: 8, // H
-  gewichtProPalette: 9, // I (Formel)
-  gewichtProKiste: 10, // J (Formel)
+  nettoProPalette: 9, // I (Formel)
+  nettoProKiste: 10, // J (Formel)
+  id: 11, // K (Palettenkennung der App)
 } as const;
+
+/** Spaltenüberschriften, die die Einrichtungsfunktion setzt. */
+export const JOURNAL_HEADER = [
+  "Datum",
+  "Person",
+  "Schlag",
+  "Sorte",
+  "Gewicht brutto [kg]",
+  "Anzahl Gebinde",
+  "Gebindeart (leer = G2)",
+  "Bemerkung",
+  "Netto pro Palette [kg]",
+  "Netto pro Kiste [kg]",
+  "ID (App)",
+] as const;
 
 export const HEADER_ROW = 1;
 export const FIRST_DATA_ROW = 2;
 
-export function netGewichtProPalette(gewichtBrutto: number, anzahlKisten: number): number {
-  return gewichtBrutto - PALETTE_TARA_KG - anzahlKisten * KISTE_TARA_KG;
+// Anbauplanung: Zeile 1 Hinweis, Zeile 2 Überschriften, Daten ab Zeile 3.
+export const PLAN_HINWEIS_ROW = 1;
+export const PLAN_HEADER_ROW = 2;
+export const PLAN_FIRST_DATA_ROW = 3;
+export const PLAN_HEADER = ["Schlag", "Sorte", "Ertrag [kg netto]"] as const;
+
+// Referenzwerte: Zeile 1 Überschriften, Daten ab Zeile 2.
+export const REFERENZ_HEADER_ROW = 1;
+export const REFERENZ_FIRST_DATA_ROW = 2;
+export const REFERENZ_HEADER = [
+  "Sorte",
+  "Paletten",
+  "Kisten",
+  "Netto kg",
+  "⌀ kg/Kiste",
+  "Letzte Änderung",
+] as const;
+
+export function netGewichtProPalette(
+  gewichtBrutto: number,
+  anzahlKisten: number,
+  gebindeart?: string | null
+): number {
+  return gewichtBrutto - PALETTE_TARA_KG - anzahlKisten * taraFuerGebinde(gebindeart);
 }
 
-export function gewichtProKiste(gewichtBrutto: number, anzahlKisten: number): number {
+export function gewichtProKiste(
+  gewichtBrutto: number,
+  anzahlKisten: number,
+  gebindeart?: string | null
+): number {
   if (anzahlKisten <= 0) return 0;
-  return netGewichtProPalette(gewichtBrutto, anzahlKisten) / anzahlKisten;
+  return netGewichtProPalette(gewichtBrutto, anzahlKisten, gebindeart) / anzahlKisten;
 }

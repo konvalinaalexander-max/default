@@ -30,10 +30,22 @@ function defaultConfig(): SessionConfig {
   return {
     datum: todayIso(),
     person: "",
-    feld: "",
+    schlag: "",
     sorte: "",
     gebindeart: STANDARD_GEBINDEART,
   };
+}
+
+/**
+ * Bis zur Umbenennung hiess der Schlag in den gespeicherten Daten "feld". Auf den Handys
+ * liegen laufende Anlieferungen im Browserspeicher - ohne diese Übernahme wäre dort nach
+ * dem Update der Schlag leer, und die App würde mitten in der Anlieferung nach dem Setup
+ * fragen. Kann entfernt werden, sobald sicher keine alten Sitzungen mehr offen sind.
+ */
+function uebernehmeSchlag<T extends { schlag?: string }>(gespeichert: T): T {
+  const alt = (gespeichert as { feld?: unknown }).feld;
+  if (gespeichert.schlag || typeof alt !== "string") return gespeichert;
+  return { ...gespeichert, schlag: alt };
 }
 
 function loadStored(): StoredState {
@@ -43,9 +55,9 @@ function loadStored(): StoredState {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return leer;
     const parsed = JSON.parse(raw) as Partial<StoredState>;
-    const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
+    const entries = (Array.isArray(parsed.entries) ? parsed.entries : []).map(uebernehmeSchlag);
     return {
-      config: { ...defaultConfig(), ...parsed.config },
+      config: { ...defaultConfig(), ...uebernehmeSchlag(parsed.config ?? {}) },
       // Beim Laden gilt alles als offen, was beim Schliessen noch unterwegs war -
       // sonst bliebe eine Zeile für immer im Zustand "wird gespeichert" hängen.
       entries: entries.map((e) => ({
@@ -117,9 +129,16 @@ export function useSession() {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...changes } : e)));
   }, []);
 
-  /** Schickt eine Zeile ans Sheet und pflegt den Status nach. */
+  /**
+   * Schickt eine Zeile ans Sheet und pflegt den Status nach.
+   *
+   * @param istWiederholung Bei einem erneuten Versuch prüft der Server erst, ob die
+   * Palette schon im Sheet steht. Nötig, weil eine verlorene Antwort auf einen
+   * erfolgreichen Schreibvorgang sonst eine zweite identische Zeile hinterlässt - und
+   * identische Paletten sind normal, die Doppelzeile wäre also nicht erkennbar.
+   */
   const sende = useCallback(
-    (entry: PaletteEntry) => {
+    (entry: PaletteEntry, istWiederholung = false) => {
       const fertig = () => updateEntryLocal(entry.id, { syncStatus: "synced", syncError: undefined });
       const fehler = (err: Error) =>
         updateEntryLocal(entry.id, { syncStatus: "error", syncError: err.message });
@@ -128,7 +147,7 @@ export function useSession() {
         api.updatePaletteRow(entry.sheetRow, entry).then(fertig).catch(fehler);
       } else {
         api
-          .createPalette(entry)
+          .createPalette(entry, istWiederholung)
           .then(({ sheetRow }) =>
             updateEntryLocal(entry.id, { sheetRow, syncStatus: "synced", syncError: undefined })
           )
@@ -142,7 +161,7 @@ export function useSession() {
     (draft: PaletteDraft & { gebindeart?: string }) => {
       // Schutz gegen versehentliches doppeltes Tippen auf "Weiter" - mit Handschuhen
       // oder bei Verzögerung im Netz passiert das sonst leicht.
-      const signatur = `${config.sorte}|${config.feld}|${draft.gewichtBrutto}|${draft.anzahlKisten}`;
+      const signatur = `${config.sorte}|${config.schlag}|${draft.gewichtBrutto}|${draft.anzahlKisten}`;
       const jetzt = Date.now();
       const vorher = letzteEingabe.current;
       if (vorher && vorher.signatur === signatur && jetzt - vorher.zeit < DOPPELKLICK_FENSTER_MS) {
@@ -154,7 +173,7 @@ export function useSession() {
         id: createId(),
         datum: config.datum,
         person: config.person,
-        feld: config.feld,
+        schlag: config.schlag,
         sorte: config.sorte,
         gewichtBrutto: draft.gewichtBrutto,
         anzahlKisten: draft.anzahlKisten,
@@ -174,7 +193,7 @@ export function useSession() {
   type EditableFields = Partial<
     Pick<
       PaletteEntry,
-      "datum" | "person" | "feld" | "sorte" | "gewichtBrutto" | "anzahlKisten" | "bemerkung"
+      "datum" | "person" | "schlag" | "sorte" | "gewichtBrutto" | "anzahlKisten" | "bemerkung"
     >
   >;
 
@@ -198,7 +217,7 @@ export function useSession() {
       setEntries((prev) =>
         prev.map((e) => (e.id === id ? { ...e, syncStatus: "syncing" as const } : e))
       );
-      sende({ ...current, syncStatus: "syncing" });
+      sende({ ...current, syncStatus: "syncing" }, true);
     },
     [sende]
   );
@@ -282,7 +301,7 @@ export function useSession() {
         sheetRow: e.sheetRow,
         datum: changes.datum ?? e.datum,
         person: changes.person ?? e.person,
-        feld: changes.feld ?? e.feld,
+        schlag: changes.schlag ?? e.schlag,
         sorte: changes.sorte ?? e.sorte,
       }));
 

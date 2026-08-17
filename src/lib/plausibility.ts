@@ -1,5 +1,5 @@
 import { gewichtProKiste, netGewichtProPalette } from "./constants";
-import type { SorteStats } from "./types";
+import type { SorteStats, SorteVorwissen } from "./types";
 
 export interface PlausibilitaetsCheck {
   /** "unmoeglich" = rechnerisch ausgeschlossen, "warnung" = auffällig, "ok" = im Rahmen. */
@@ -53,14 +53,15 @@ const NOTBEREICH_BIS = 50;
 export function pruefePlausibilitaet(
   gewichtBrutto: number,
   anzahlKisten: number,
+  gebindeart: string | null | undefined,
   sorteStats: SorteStats | undefined,
   allgemeineStats?: SorteStats | null
 ): PlausibilitaetsCheck {
-  const istWertProKiste = gewichtProKiste(gewichtBrutto, anzahlKisten);
+  const istWertProKiste = gewichtProKiste(gewichtBrutto, anzahlKisten, gebindeart);
 
   // Rechnerisch unmöglich: nach Abzug von Palette und Leerkisten bleibt kein Gewicht
   // übrig. Das ist kein Grenzfall, sondern immer ein Eingabefehler.
-  if (!anzahlKisten || netGewichtProPalette(gewichtBrutto, anzahlKisten) <= 0) {
+  if (!anzahlKisten || netGewichtProPalette(gewichtBrutto, anzahlKisten, gebindeart) <= 0) {
     return {
       status: "unmoeglich",
       istWertProKiste,
@@ -139,6 +140,39 @@ function spanneAus(
 ) {
   const toleranz = Math.max(mitte * relativeToleranz, streuung * MAD_ZU_SIGMA * sigmaFaktor);
   return { von: Math.max(0, mitte - toleranz), bis: mitte + toleranz };
+}
+
+/**
+ * Wählt den Ausgangspunkt für eine Sorte, zu der in der laufenden Saison noch nichts
+ * vorliegt. Reihenfolge nach Aussagekraft: erst das Vorwissen zu genau dieser Sorte aus
+ * den Vorjahren, dann der Durchschnitt aller Sorten dieser Saison, zuletzt das Vorwissen
+ * über alle Sorten. Letztjährige Werte derselben Sorte sagen mehr als der heurige
+ * Mittelwert über alle Sorten - deshalb stehen sie vorn.
+ */
+export function waehlePrior(
+  sorte: string,
+  vorwissen: Record<string, SorteVorwissen>,
+  allgemeineStats: SorteStats | null,
+  allgemeinesVorwissen: SorteVorwissen | null
+): SorteStats | null {
+  const eigenes = vorwissen[sorte];
+  if (eigenes && eigenes.anzahlProben > 0 && eigenes.mittelProKiste > 0) {
+    return vorwissenAlsStats(eigenes);
+  }
+  if (allgemeineStats && allgemeineStats.anzahlProben > 0) return allgemeineStats;
+  if (allgemeinesVorwissen && allgemeinesVorwissen.anzahlProben > 0) {
+    return vorwissenAlsStats(allgemeinesVorwissen);
+  }
+  return null;
+}
+
+/**
+ * Das Referenzblatt führt nur Summen, keine Streuung. Streuung 0 bedeutet hier nicht
+ * "keine Schwankung", sondern "unbekannt" - dann greift die grosszügige relative
+ * Toleranz, was für einen Ausgangspunkt genau richtig ist.
+ */
+function vorwissenAlsStats(v: SorteVorwissen): SorteStats {
+  return { medianProKiste: v.mittelProKiste, madProKiste: 0, anzahlProben: v.anzahlProben };
 }
 
 export function median(werte: number[]): number {

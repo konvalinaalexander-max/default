@@ -4,14 +4,18 @@ import { useId, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import type { SessionConfig } from "@/lib/types";
 import { ComboField } from "./ComboField";
+import { NeuDialog } from "./NeuDialog";
 
 interface SessionConfigFormProps {
   lang: Lang;
   config: SessionConfig;
   personen: string[];
-  felder: string[];
-  sorten: string[];
-  onAddOption: (kind: "personen" | "felder" | "sorten", value: string) => void;
+  schlaege: string[];
+  /** Erlaubte Sorten für den gerade gewählten Schlag. */
+  sortenFuerSchlag: (schlag: string) => string[];
+  onAddPerson: (name: string) => void;
+  /** Legt ein neues Schlag-Sorte-Paar in der Anbauplanung an. */
+  onNeuePlanung: (schlag: string, sorte: string) => void;
   onSubmit: (config: SessionConfig) => void;
   submitLabel: string;
   title?: string;
@@ -24,9 +28,10 @@ export function SessionConfigForm({
   lang,
   config,
   personen,
-  felder,
-  sorten,
-  onAddOption,
+  schlaege,
+  sortenFuerSchlag,
+  onAddPerson,
+  onNeuePlanung,
   onSubmit,
   submitLabel,
   title,
@@ -34,12 +39,31 @@ export function SessionConfigForm({
   children,
 }: SessionConfigFormProps) {
   const [local, setLocal] = useState<SessionConfig>(config);
+  const [neuDialog, setNeuDialog] = useState<"schlag" | "sorte" | null>(null);
   const datumId = useId();
 
-  const complete = local.datum && local.person && local.feld && local.sorte;
+  const complete = local.datum && local.person && local.schlag && local.sorte;
+  const sorten = local.schlag ? sortenFuerSchlag(local.schlag) : [];
 
   function set<K extends keyof SessionConfig>(key: K, value: SessionConfig[K]) {
     setLocal((prev) => ({ ...prev, [key]: value }));
+  }
+
+  /**
+   * Beim Wechsel des Schlags wird die Sorte zurückgesetzt, sofern sie auf dem neuen
+   * Schlag nicht vorkommt. Sonst bliebe eine Sorte stehen, die dort nicht wächst - und
+   * ihre Kilos würden in der Anbauplanung unter einer Kombination landen, die es
+   * gar nicht gibt.
+   */
+  function waehleSchlag(schlag: string) {
+    setLocal((prev) => {
+      const erlaubt = sortenFuerSchlag(schlag);
+      return {
+        ...prev,
+        schlag,
+        sorte: erlaubt.includes(prev.sorte) ? prev.sorte : "",
+      };
+    });
   }
 
   return (
@@ -65,30 +89,30 @@ export function SessionConfigForm({
         label={t(lang, "person")}
         value={local.person}
         options={personen}
+        neuModus="frei"
         onChange={(v) => {
           set("person", v);
-          onAddOption("personen", v);
+          onAddPerson(v);
         }}
       />
       <ComboField
         lang={lang}
         label={t(lang, "field")}
-        value={local.feld}
-        options={felder}
-        onChange={(v) => {
-          set("feld", v);
-          onAddOption("felder", v);
-        }}
+        value={local.schlag}
+        options={schlaege}
+        neuModus="geschuetzt"
+        onNeuAngefragt={() => setNeuDialog("schlag")}
+        onChange={waehleSchlag}
       />
       <ComboField
         lang={lang}
         label={t(lang, "variety")}
         value={local.sorte}
         options={sorten}
-        onChange={(v) => {
-          set("sorte", v);
-          onAddOption("sorten", v);
-        }}
+        neuModus="geschuetzt"
+        onNeuAngefragt={() => setNeuDialog("sorte")}
+        onChange={(v) => set("sorte", v)}
+        hinweis={local.schlag ? null : t(lang, "selectFieldFirst")}
       />
 
       <button
@@ -101,6 +125,38 @@ export function SessionConfigForm({
       </button>
 
       {children}
+
+      {neuDialog === "schlag" && (
+        <NeuDialog
+          lang={lang}
+          titel={t(lang, "newFieldTitle")}
+          // Ein Schlag ohne Sorte liesse sich nicht bewiegen, darum beides zusammen.
+          felder={[
+            { key: "schlag", label: t(lang, "field") },
+            { key: "sorte", label: t(lang, "varietyOnField") },
+          ]}
+          onAbbrechen={() => setNeuDialog(null)}
+          onSpeichern={({ schlag, sorte }) => {
+            onNeuePlanung(schlag, sorte);
+            setLocal((prev) => ({ ...prev, schlag, sorte }));
+            setNeuDialog(null);
+          }}
+        />
+      )}
+
+      {neuDialog === "sorte" && (
+        <NeuDialog
+          lang={lang}
+          titel={t(lang, "newVarietyTitle")}
+          felder={[{ key: "sorte", label: t(lang, "varietyOnField") }]}
+          onAbbrechen={() => setNeuDialog(null)}
+          onSpeichern={({ sorte }) => {
+            onNeuePlanung(local.schlag, sorte);
+            set("sorte", sorte);
+            setNeuDialog(null);
+          }}
+        />
+      )}
     </div>
   );
 }

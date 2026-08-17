@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
 
 interface QuickPickerProps {
@@ -10,23 +9,32 @@ interface QuickPickerProps {
   current: string;
   onSelect: (value: string) => void;
   onCancel: () => void;
+  /**
+   * "geschuetzt": Eintrag "+++ Neu +++" am Ende, der die Passwortabfrage öffnet.
+   * "keine": nur auswählen - richtig bei den Gebindearten, deren Liste mit ihren
+   * Leergewichten fest hinterlegt ist.
+   *
+   * Eine freie Eingabe gibt es hier nicht mehr: Über diesen Weg liess sich vorher eine
+   * Sorte anlegen, ohne dass die Anbauplanung davon wusste.
+   */
+  neuModus?: "geschuetzt" | "keine";
+  onNeuAngefragt?: () => void;
 }
 
 /**
  * Auswahl aus einer Liste in einem Rutsch - für den häufigen Fall, dass mitten in
  * einer Anlieferung die Sorte wechselt und niemand dafür in die Einstellungen soll.
  */
-export function QuickPicker({ lang, title, options, current, onSelect, onCancel }: QuickPickerProps) {
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState("");
-
-  function commitNew() {
-    const trimmed = draft.trim();
-    if (trimmed) onSelect(trimmed);
-    setDraft("");
-    setAdding(false);
-  }
-
+export function QuickPicker({
+  lang,
+  title,
+  options,
+  current,
+  onSelect,
+  onCancel,
+  neuModus = "keine",
+  onNeuAngefragt,
+}: QuickPickerProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
       <div
@@ -51,31 +59,13 @@ export function QuickPicker({ lang, title, options, current, onSelect, onCancel 
           ))}
         </div>
 
-        {adding ? (
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && commitNew()}
-              className="min-w-0 flex-1 rounded-xl border border-neutral-300 px-4 py-3 text-lg"
-            />
-            <button
-              type="button"
-              onClick={commitNew}
-              className="shrink-0 rounded-xl bg-orange-600 px-4 py-3 text-lg font-medium text-white"
-            >
-              {t(lang, "ok")}
-            </button>
-          </div>
-        ) : (
+        {neuModus === "geschuetzt" && (
           <button
             type="button"
-            onClick={() => setAdding(true)}
+            onClick={onNeuAngefragt}
             className="rounded-xl border border-orange-300 bg-orange-50 py-3 text-lg font-medium text-orange-700"
           >
-            + {t(lang, "addNew")}
+            {t(lang, "addNewOption")}
           </button>
         )}
 

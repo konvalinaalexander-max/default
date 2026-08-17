@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { appendPalette } from "@/lib/googleSheets";
+import { netGewichtProPalette } from "@/lib/constants";
+import { appendPalette, schreibeReferenzwertFort } from "@/lib/googleSheets";
 import type { PaletteEntry } from "@/lib/types";
 import { pruefePalette } from "@/lib/validation";
 
@@ -12,8 +13,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: pruefung.fehler }, { status: 400 });
     }
 
-    const result = await appendPalette(body as PaletteEntry);
-    return NextResponse.json(result);
+    const entry = body as PaletteEntry & { istWiederholung?: boolean };
+    const result = await appendPalette(entry, entry.istWiederholung === true);
+
+    // Referenzwerte nur bei einer wirklich neu geschriebenen Zeile fortschreiben - bei
+    // einem Wiederholversuch, der die Palette schon im Sheet findet, wäre es doppelt.
+    if (!result.schonVorhanden) {
+      await schreibeReferenzwertFort(
+        entry.sorte,
+        entry.anzahlKisten,
+        netGewichtProPalette(entry.gewichtBrutto, entry.anzahlKisten, entry.gebindeart)
+      ).catch((err) => {
+        // Die Palette steht im Journal - das ist das Wichtige. Ein Fehler beim
+        // Fortschreiben der Statistik darf die Erfassung nicht scheitern lassen.
+        console.error("Referenzwert konnte nicht fortgeschrieben werden", err);
+      });
+    }
+
+    return NextResponse.json({ sheetRow: result.sheetRow });
   } catch (err) {
     console.error("POST /api/paletten failed", err);
     return NextResponse.json(

@@ -3,21 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import { STANDARD_ANZAHL_KISTEN, STANDARD_GEBINDEART } from "@/lib/constants";
 import { formatNumber, t, type Lang } from "@/lib/i18n";
-import { pruefePlausibilitaet } from "@/lib/plausibility";
-import type { SorteStats } from "@/lib/types";
+import { pruefePlausibilitaet, waehlePrior } from "@/lib/plausibility";
+import type { SorteStats, SorteVorwissen } from "@/lib/types";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { NeuDialog } from "./NeuDialog";
 import { QuickPicker } from "./QuickPicker";
 
 interface WeighScreenProps {
   lang: Lang;
   sorte: string;
-  feld: string;
+  schlag: string;
   gebindeart: string;
   sorten: string[];
   gebindearten: string[];
   sortenStats: Record<string, SorteStats>;
   allgemeineStats: SorteStats | null;
+  /** Vorwissen aus den Vorjahren, damit eine Sorte im neuen Jahr nicht bei null anfängt. */
+  vorwissen: Record<string, SorteVorwissen>;
+  allgemeinesVorwissen: SorteVorwissen | null;
   offeneAnzahl: number;
+  /** Legt ein Schlag-Sorte-Paar in der Anbauplanung an (mit Passwort). */
+  onNeuePlanung: (schlag: string, sorte: string) => void;
   /** Das Gebinde wird immer mitgegeben, damit kein noch nicht übernommener Zustand greift. */
   onSave: (draft: { anzahlKisten: number; gewichtBrutto: number; gebindeart: string }) => void;
   onChangeSorte: (sorte: string) => void;
@@ -33,13 +39,16 @@ type DialogZustand =
 export function WeighScreen({
   lang,
   sorte,
-  feld,
+  schlag,
   gebindeart,
   sorten,
   gebindearten,
   sortenStats,
   allgemeineStats,
+  vorwissen,
+  allgemeinesVorwissen,
   offeneAnzahl,
+  onNeuePlanung,
   onSave,
   onChangeSorte,
   onChangeGebindeart,
@@ -49,6 +58,7 @@ export function WeighScreen({
   const [dialog, setDialog] = useState<DialogZustand>(null);
   const [sortenwahlOffen, setSortenwahlOffen] = useState(false);
   const [gebindewahlOffen, setGebindewahlOffen] = useState(false);
+  const [neuSorteOffen, setNeuSorteOffen] = useState(false);
   const gewichtRef = useRef<HTMLInputElement>(null);
   const kistenRef = useRef<HTMLInputElement>(null);
 
@@ -68,8 +78,9 @@ export function WeighScreen({
     const check = pruefePlausibilitaet(
       gewichtBrutto,
       anzahlKisten,
+      gebindeart,
       sortenStats[sorte],
-      allgemeineStats
+      waehlePrior(sorte, vorwissen, allgemeineStats, allgemeinesVorwissen)
     );
 
     if (check.status === "unmoeglich") {
@@ -138,7 +149,7 @@ export function WeighScreen({
           </button>
         </div>
         <span className="text-sm text-neutral-500">
-          {feld}
+          {schlag}
           {offeneAnzahl > 0 && (
             <span className="ml-2 text-orange-600">
               · {t(lang, "saving")} ({offeneAnzahl})
@@ -255,11 +266,30 @@ export function WeighScreen({
           title={t(lang, "changeVariety")}
           options={sorten}
           current={sorte}
+          neuModus="geschuetzt"
+          onNeuAngefragt={() => {
+            setSortenwahlOffen(false);
+            setNeuSorteOffen(true);
+          }}
           onSelect={(neu) => {
             onChangeSorte(neu);
             setSortenwahlOffen(false);
           }}
           onCancel={() => setSortenwahlOffen(false)}
+        />
+      )}
+
+      {neuSorteOffen && (
+        <NeuDialog
+          lang={lang}
+          titel={t(lang, "newVarietyTitle")}
+          felder={[{ key: "sorte", label: t(lang, "varietyOnField") }]}
+          onAbbrechen={() => setNeuSorteOffen(false)}
+          onSpeichern={({ sorte: neu }) => {
+            onNeuePlanung(schlag, neu);
+            onChangeSorte(neu);
+            setNeuSorteOffen(false);
+          }}
         />
       )}
 
@@ -269,6 +299,9 @@ export function WeighScreen({
           title={t(lang, "changePackaging")}
           options={gebindearten}
           current={gebindeart}
+          // Die Gebindearten liegen mit ihrem Leergewicht fest - hier gibt es nichts
+          // hinzuzufügen, was die App nicht ausrechnen könnte.
+          neuModus="keine"
           onSelect={(neu) => {
             onChangeGebindeart(neu);
             setGebindewahlOffen(false);

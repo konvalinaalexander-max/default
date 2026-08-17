@@ -6,6 +6,8 @@ import { formatDate, formatMenge, formatNumber, t, type Lang } from "@/lib/i18n"
 import type { PaletteEntry, SessionConfig } from "@/lib/types";
 import { ComboField } from "./ComboField";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EinrichtenKnopf } from "./EinrichtenKnopf";
+import { NeuDialog } from "./NeuDialog";
 import { SessionConfigForm } from "./SessionConfigForm";
 
 interface OverviewScreenProps {
@@ -19,9 +21,10 @@ interface OverviewScreenProps {
   config: SessionConfig;
   entries: PaletteEntry[];
   personen: string[];
-  felder: string[];
-  sorten: string[];
-  onAddOption: (kind: "personen" | "felder" | "sorten", value: string) => void;
+  schlaege: string[];
+  sortenFuerSchlag: (schlag: string) => string[];
+  onAddPerson: (name: string) => void;
+  onNeuePlanung: (schlag: string, sorte: string) => void;
   onApplyConfigChange: (changes: Partial<SessionConfig>, retro: boolean) => void;
   onUpdateEntry: (id: string, changes: Partial<PaletteEntry>) => void;
   onRetryEntry: (id: string) => void;
@@ -46,9 +49,10 @@ export function OverviewScreen({
   config,
   entries,
   personen,
-  felder,
-  sorten,
-  onAddOption,
+  schlaege,
+  sortenFuerSchlag,
+  onAddPerson,
+  onNeuePlanung,
   onApplyConfigChange,
   onUpdateEntry,
   onRetryEntry,
@@ -100,9 +104,10 @@ export function OverviewScreen({
           lang={lang}
           config={config}
           personen={personen}
-          felder={felder}
-          sorten={sorten}
-          onAddOption={onAddOption}
+          schlaege={schlaege}
+          sortenFuerSchlag={sortenFuerSchlag}
+          onAddPerson={onAddPerson}
+          onNeuePlanung={onNeuePlanung}
           onSubmit={handleConfigSubmit}
           submitLabel={t(lang, "save")}
           title={t(lang, "settings")}
@@ -114,6 +119,8 @@ export function OverviewScreen({
           >
             🌐 {t(lang, "language")}
           </button>
+
+          <EinrichtenKnopf lang={lang} />
 
           {/* Verrät auf den ersten Blick, welcher Stand auf diesem Gerät läuft. */}
           <p className="text-center text-xs text-neutral-400">
@@ -168,7 +175,7 @@ export function OverviewScreen({
       </div>
 
       <div className="rounded-xl bg-neutral-100 px-4 py-3 text-sm text-neutral-600">
-        {formatDate(lang, config.datum)} · {config.person} · {config.feld} · {config.sorte}
+        {formatDate(lang, config.datum)} · {config.person} · {config.schlag} · {config.sorte}
       </div>
 
       <div className="flex flex-col gap-3">
@@ -180,9 +187,9 @@ export function OverviewScreen({
             key={entry.id}
             lang={lang}
             entry={entry}
-            felder={felder}
-            sorten={sorten}
-            onAddOption={onAddOption}
+            schlaege={schlaege}
+            sortenFuerSchlag={sortenFuerSchlag}
+            onNeuePlanung={onNeuePlanung}
             onUpdate={(changes) => onUpdateEntry(entry.id, changes)}
             onRetry={() => onRetryEntry(entry.id)}
             onRemove={() => onRemoveEntry(entry.id)}
@@ -230,9 +237,9 @@ function statusLabel(lang: Lang, entry: PaletteEntry): { text: string; className
 interface PaletteCardProps {
   lang: Lang;
   entry: PaletteEntry;
-  felder: string[];
-  sorten: string[];
-  onAddOption: (kind: "personen" | "felder" | "sorten", value: string) => void;
+  schlaege: string[];
+  sortenFuerSchlag: (schlag: string) => string[];
+  onNeuePlanung: (schlag: string, sorte: string) => void;
   onUpdate: (changes: Partial<PaletteEntry>) => void;
   onRetry: () => void;
   onRemove: () => void;
@@ -241,29 +248,30 @@ interface PaletteCardProps {
 function PaletteCard({
   lang,
   entry,
-  felder,
-  sorten,
-  onAddOption,
+  schlaege,
+  sortenFuerSchlag,
+  onNeuePlanung,
   onUpdate,
   onRetry,
   onRemove,
 }: PaletteCardProps) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [neuDialog, setNeuDialog] = useState<"schlag" | "sorte" | null>(null);
   const [kisten, setKisten] = useState(String(entry.anzahlKisten));
   const [gewicht, setGewicht] = useState(String(entry.gewichtBrutto));
-  const [feld, setFeld] = useState(entry.feld);
+  const [schlag, setSchlag] = useState(entry.schlag);
   const [sorte, setSorte] = useState(entry.sorte);
 
   const status = statusLabel(lang, entry);
-  const kgProKiste = gewichtProKiste(entry.gewichtBrutto, entry.anzahlKisten);
+  const kgProKiste = gewichtProKiste(entry.gewichtBrutto, entry.anzahlKisten, entry.gebindeart);
   const busy = entry.syncStatus === "syncing";
 
   function save() {
     onUpdate({
       anzahlKisten: Number(kisten.replace(",", ".")) || entry.anzahlKisten,
       gewichtBrutto: Number(gewicht.replace(",", ".")) || entry.gewichtBrutto,
-      feld,
+      schlag,
       sorte,
     });
     setEditing(false);
@@ -282,7 +290,7 @@ function PaletteCard({
         {t(lang, "perCrate")}
       </div>
       <div className="text-sm text-neutral-500">
-        {entry.sorte} · {entry.feld} ·{" "}
+        {entry.sorte} · {entry.schlag} ·{" "}
         {/* Ein vom Standard abweichendes Gebinde wird hervorgehoben, damit es in der
             Liste sofort auffällt, falls es versehentlich gesetzt war. */}
         <span
@@ -346,22 +354,24 @@ function PaletteCard({
           <ComboField
             lang={lang}
             label={t(lang, "field")}
-            value={feld}
-            options={felder}
+            value={schlag}
+            options={schlaege}
+            neuModus="geschuetzt"
+            onNeuAngefragt={() => setNeuDialog("schlag")}
             onChange={(v) => {
-              setFeld(v);
-              onAddOption("felder", v);
+              setSchlag(v);
+              // Passt die Sorte nicht zum neuen Schlag, muss sie neu gewählt werden.
+              if (!sortenFuerSchlag(v).includes(sorte)) setSorte("");
             }}
           />
           <ComboField
             lang={lang}
             label={t(lang, "variety")}
             value={sorte}
-            options={sorten}
-            onChange={(v) => {
-              setSorte(v);
-              onAddOption("sorten", v);
-            }}
+            options={sortenFuerSchlag(schlag)}
+            neuModus="geschuetzt"
+            onNeuAngefragt={() => setNeuDialog("sorte")}
+            onChange={setSorte}
           />
           <div className="flex gap-2">
             <button
@@ -412,6 +422,38 @@ function PaletteCard({
             setConfirmDelete(false);
           }}
           onCancel={() => setConfirmDelete(false)}
+        />
+      )}
+
+      {neuDialog === "schlag" && (
+        <NeuDialog
+          lang={lang}
+          titel={t(lang, "newFieldTitle")}
+          felder={[
+            { key: "schlag", label: t(lang, "field") },
+            { key: "sorte", label: t(lang, "varietyOnField") },
+          ]}
+          onAbbrechen={() => setNeuDialog(null)}
+          onSpeichern={(w) => {
+            onNeuePlanung(w.schlag, w.sorte);
+            setSchlag(w.schlag);
+            setSorte(w.sorte);
+            setNeuDialog(null);
+          }}
+        />
+      )}
+
+      {neuDialog === "sorte" && (
+        <NeuDialog
+          lang={lang}
+          titel={t(lang, "newVarietyTitle")}
+          felder={[{ key: "sorte", label: t(lang, "varietyOnField") }]}
+          onAbbrechen={() => setNeuDialog(null)}
+          onSpeichern={(w) => {
+            onNeuePlanung(schlag, w.sorte);
+            setSorte(w.sorte);
+            setNeuDialog(null);
+          }}
         />
       )}
     </div>

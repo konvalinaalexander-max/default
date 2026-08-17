@@ -21,7 +21,7 @@ export function AppShell() {
   const [sprachwahlOffen, setSprachwahlOffen] = useState(false);
   const [datumHinweisWeg, setDatumHinweisWeg] = useState(false);
 
-  const needsSetup = !session.config.person || !session.config.feld || !session.config.sorte;
+  const needsSetup = !session.config.person || !session.config.schlag || !session.config.sorte;
 
   // Vor allem anderen die Sprache klären - ohne sie versteht die Person den Rest nicht.
   if (!lang) {
@@ -64,9 +64,10 @@ export function AppShell() {
           lang={lang}
           config={session.config}
           personen={ref.personen}
-          felder={ref.felder}
-          sorten={ref.sorten}
-          onAddOption={ref.addLocalOption}
+          schlaege={ref.schlaege}
+          sortenFuerSchlag={ref.sortenFuerSchlag}
+          onAddPerson={ref.addLocalPerson}
+          onNeuePlanung={ref.addLocalPlanung}
           onSubmit={(cfg) => session.applyConfigChange(cfg, false)}
           submitLabel={t(lang, "startWeighing")}
           title={t(lang, "newDeliveryTitle")}
@@ -94,21 +95,23 @@ export function AppShell() {
           <WeighScreen
             lang={lang}
             sorte={session.config.sorte}
-            feld={session.config.feld}
+            schlag={session.config.schlag}
             gebindeart={session.config.gebindeart}
-            sorten={ref.sorten}
+            // Nur die Sorten, die auf diesem Schlag stehen.
+            sorten={ref.sortenFuerSchlag(session.config.schlag)}
             gebindearten={ref.gebindearten}
             sortenStats={ref.sortenStats}
             allgemeineStats={ref.allgemeineStats}
+            vorwissen={ref.vorwissen}
+            allgemeinesVorwissen={ref.allgemeinesVorwissen}
             offeneAnzahl={session.offeneAnzahl}
+            onNeuePlanung={ref.addLocalPlanung}
             onSave={session.addEntry}
             onChangeSorte={(sorte) => {
-              ref.addLocalOption("sorten", sorte);
               // Nur für neue Paletten - die bereits erfassten behalten ihre Sorte.
               session.applyConfigChange({ sorte }, false);
             }}
             onChangeGebindeart={(gebindeart) => {
-              ref.addLocalOption("gebindearten", gebindeart);
               session.applyConfigChange({ gebindeart }, false);
             }}
           />
@@ -121,9 +124,10 @@ export function AppShell() {
           config={session.config}
           entries={session.entries}
           personen={ref.personen}
-          felder={ref.felder}
-          sorten={ref.sorten}
-          onAddOption={ref.addLocalOption}
+          schlaege={ref.schlaege}
+          sortenFuerSchlag={ref.sortenFuerSchlag}
+          onAddPerson={ref.addLocalPerson}
+          onNeuePlanung={ref.addLocalPlanung}
           onApplyConfigChange={session.applyConfigChange}
           onUpdateEntry={session.updateEntry}
           onRetryEntry={session.retryEntry}

@@ -1,7 +1,7 @@
 # Kürbis Erntejournal
 
 Mobile-first Web-App für die Palettenerfassung beim Wareneingang. Angestellte tragen
-pro Palette nur noch **Anzahl Kisten** und **Gewicht** ein — Datum, Person, Feld und
+pro Palette nur noch **Anzahl Kisten** und **Gewicht** ein — Datum, Person, Schlag und
 Sorte werden einmal pro Anlieferung gesetzt und im Hintergrund für jede Zeile
 automatisch mit ins Google Sheet geschrieben. Eine Plausibilitätsprüfung warnt, wenn
 das Gewicht für die angegebene Kistenanzahl ungewöhnlich abweicht.
@@ -30,15 +30,17 @@ auf genau ein Sheet bekommt — die Angestellten müssen sich nirgends einloggen
    und teile es (Button "Freigeben") mit genau dieser `client_email`-Adresse, Rolle
    **Bearbeiter**.
 
-### 2. Die vier Zugangswerte bereitlegen
+### 2. Die drei Zugangswerte bereitlegen
 
-Diese vier Werte verbinden die App mit deinem Sheet. Leg sie dir kurz zur Seite —
+Diese drei Werte verbinden die App mit deinem Sheet. Die Namen der Tabellenblätter sind
+fest eingebaut (`Ertragsjournal`, `Anbauplanung Ertrag`, `Referenzwerte`) und brauchen
+keine Umgebungsvariable — eine noch gesetzte `GOOGLE_SHEET_TAB_NAME` wird ignoriert und
+darf stehen bleiben. Leg sie dir kurz zur Seite —
 eingetragen werden sie im nächsten Schritt bei Vercel.
 
 | Wert | Wo du ihn findest |
 | --- | --- |
 | `GOOGLE_SHEET_ID` | In der Sheet-URL: `docs.google.com/spreadsheets/d/`**`DIESER_TEIL`**`/edit` |
-| `GOOGLE_SHEET_TAB_NAME` | Der Name des Tabellenblatts — der Reiter unten links im Sheet, z.B. `Tabellenblatt1` |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Der Wert von `client_email` in der JSON-Datei aus Schritt 1 |
 | `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | Der Wert von `private_key` in derselben JSON-Datei, komplett von `-----BEGIN PRIVATE KEY-----` bis `-----END PRIVATE KEY-----` |
 
@@ -55,7 +57,7 @@ Die App kommt mit beidem zurecht.
 1. Auf [vercel.com](https://vercel.com) mit dem GitHub-Konto einloggen.
 2. **Add New… → Project** und dieses Repository auswählen.
 3. Noch **vor** dem Deployen den Abschnitt **Environment Variables** aufklappen und
-   die vier Werte aus Schritt 2 eintragen — jeweils Name links, Wert rechts.
+   die drei Werte aus Schritt 2 eintragen — jeweils Name links, Wert rechts.
 4. Auf **Deploy** klicken. Nach ein bis zwei Minuten bekommst du eine Adresse wie
    `kuerbis-erntejournal.vercel.app`.
 
@@ -63,7 +65,34 @@ Wenn du die Werte erst nach dem ersten Deploy einträgst, findest du sie unter
 **Projekt → Settings → Environment Variables**. Wichtig: Damit sie greifen, danach
 einmal neu deployen (**Deployments → beim letzten Eintrag das `⋯`-Menü → Redeploy**).
 
-### 4. QR-Code aushängen
+### 4. Das Dokument einrichten
+
+Einmalig, direkt aus der App: **Übersicht → ⚙ Einstellungen → 🛠 Sheet einrichten**,
+Passwort eingeben. Die Funktion läuft auf dem Server mit den Zugangsdaten aus Schritt 2,
+es muss also kein Schlüssel von Hand irgendwohin kopiert werden.
+
+Zieh vorher im Sheet einmal **Datei → Herunterladen** — die Funktion legt zwar selbst
+eine Sicherungskopie als Tabellenblatt an, aber bei einem Eingriff in die Produktivdaten
+soll unabhängig davon eine Datei bei dir liegen.
+
+Was dabei passiert:
+
+- Dokument wird auf **Kürbis Anbauplanung Journal Ertrag** umbenannt
+- Das bestehende Tabellenblatt wird zu **Ertragsjournal**, Spaltenköpfe korrigiert
+  (`Feld` → `Schlag`, die berechneten Spalten von `Brutto` auf `Netto`), Spalte K für die
+  Palettenkennung angelegt und ausgeblendet
+- Eine Sicherungskopie **Ertragsjournal Sicherung** wird angelegt
+- **Anbauplanung Ertrag** wird angelegt: Hinweis in Zeile 1, Spaltenköpfe in Zeile 2,
+  Schlag-Sorte-Paare ab Zeile 3, Ertragsformeln in Spalte C, Kontrollwert in E1
+- **Referenzwerte** wird angelegt und aus dem bisherigen Journal gefüllt
+- Kopfzeilen werden eingefroren und mit einer Warnung geschützt
+- Netto-Formeln in leeren Zeilen werden entfernt (sie ergaben je −25 kg)
+
+Die Funktion ist **wiederholbar**: Jeder Schritt prüft vorher, ob er nötig ist, und
+Datenzeilen werden nie gelöscht. Sie bricht ab, statt zu schreiben, wenn das
+Tabellenblatt nicht wie das Ertragsjournal aussieht.
+
+### 5. QR-Code aushängen
 
 Erzeuge mit einem beliebigen Online-QR-Generator einen Code, der auf deine
 Vercel-Adresse zeigt, und häng ihn beim Wareneingang auf. Angestellte scannen ihn,
@@ -74,7 +103,7 @@ daraus ein App-Icon auf dem Handy.
 
 Nur nötig, wenn du am Code entwickeln willst — für den normalen Betrieb kannst du
 das überspringen. Kopiere dazu `.env.local.example` zu `.env.local`, trage dieselben
-vier Werte ein und starte:
+drei Werte ein und starte:
 
 ```bash
 npm install
@@ -83,14 +112,20 @@ npm run dev
 
 ## Funktionsweise
 
-- **Neue Anlieferung**: Datum, Person, Feld, Sorte einmal festlegen (Dropdown mit
-  bisherigen Werten aus dem Sheet, oder neu hinzufügen).
+- **Neue Anlieferung**: Datum, Person, Schlag, Sorte einmal festlegen. Person ist frei
+  eingebbar. **Schlag und Sorte kommen ausschliesslich aus der Anbauplanung** — damit die
+  Schreibweise mit dem Plan übereinstimmt und die Erträge zusammengerechnet werden können.
+  Die Sortenauswahl zeigt nur, was auf dem gewählten Schlag steht.
+- **Neuen Schlag oder eine neue Sorte anlegen**: `+++ Neu +++` am Ende des Dropdowns,
+  danach Passwortabfrage. Gedacht für den Betriebsleiter. Ein neuer Schlag verlangt gleich
+  eine Sorte, sonst liesse er sich nicht bewiegen. Die Zeile wird in die Anbauplanung
+  geschrieben; ohne Netz wartet sie und wird beim nächsten Start nachgetragen.
 - **Wiegen**: pro Palette nur noch Gewicht + Anzahl Kisten eintragen, "Weiter"
   speichert die Zeile im Hintergrund ins Sheet und öffnet direkt die nächste Palette.
 - **Plausibilitätsprüfung**: weicht das Gewicht pro Kiste stark vom bisherigen
   Durchschnitt dieser Sorte ab, fragt die App vor dem Speichern nochmal nach.
 - **Übersicht** (oben rechts erreichbar): alle Paletten dieser Anlieferung, einzeln
-  korrigierbar oder löschbar; Einstellungen (Datum/Person/Feld/Sorte) lassen sich
+  korrigierbar oder löschbar; Einstellungen (Datum/Person/Schlag/Sorte) lassen sich
   nachträglich ändern — wahlweise nur für neue Paletten oder rückwirkend für alle
   bereits erfassten dieser Anlieferung.
 - **Sprache**: Deutsch, Englisch, Ungarisch, Polnisch, Portugiesisch. Wird beim
@@ -100,6 +135,50 @@ npm run dev
   unbemerkt für alle folgenden Paletten aktiv.
 - **Lange Pause**: liegt die letzte Eingabe über eine Stunde zurück, fragt die App
   beim nächsten Öffnen, ob die Anlieferung noch läuft oder eine neue beginnt.
+
+## Die drei Tabellenblätter
+
+| Blatt | Inhalt |
+| --- | --- |
+| `Ertragsjournal` | Eine Zeile pro Palette, chronologisch. Spalten A–H von der App bzw. von Hand, I und J als Formel (Netto), K die Palettenkennung |
+| `Anbauplanung Ertrag` | Schlag, Sorte, Ertrag. Zeile 1 Hinweis, Zeile 2 Köpfe, Daten ab Zeile 3 |
+| `Referenzwerte` | Je Sorte die aufsummierten Paletten, Kisten und Kilos |
+
+**Der Ertrag ist eine Formel**, kein von der App geschriebener Wert:
+
+```
+=SUMIFS(Ertragsjournal!$I:$I; Ertragsjournal!$C:$C; $A3; Ertragsjournal!$D:$D; $B3)
+```
+
+Deshalb wirkt jede Korrektur im Journal sofort im Ertrag — egal ob sie aus der App kam
+oder von Hand im Sheet gemacht wurde. Es gibt keinen Weg, auf dem die beiden Blätter
+auseinanderlaufen könnten, weil es nur eine Datenquelle gibt.
+
+**Der Kontrollwert in E1** zeigt `Nicht zugeordnet: 0 kg`. Steht dort etwas anderes, gibt
+es Paletten, deren Schlag-Sorte-Kombination nicht in der Planung steht — etwa nach einem
+Umbenennen oder einem Tippfehler. Ein Blick genügt.
+
+**Die Referenzwerte werden nur fortgeschrieben, nie neu berechnet.** Das ist Absicht:
+Wird das Journal am Saisonstart geleert, ergäbe eine Neuberechnung null Proben und würde
+das Wissen der Vorjahre überschreiben. So startet eine Sorte im neuen Jahr mit dem Wert,
+den sie letztes Jahr hatte, statt wieder bei null.
+
+## Saisonwechsel
+
+Es braucht keine Funktion in der App. Der Betriebsleiter arbeitet direkt im Sheet:
+
+1. Im `Ertragsjournal` die Zeilen **ab Zeile 2** löschen (Kopfzeile stehen lassen). Wer
+   die Vorjahresdaten behalten will, kopiert sie vorher heraus oder duplizert den Tab.
+2. In `Anbauplanung Ertrag` die Zeilen **ab Zeile 3** löschen und die neue Planung direkt
+   darunter einfügen — nur Spalte A und B, ohne Leerzeile.
+
+Die App kommt damit von selbst zurecht: Sie hängt neue Paletten immer unter den letzten
+Eintrag (ist alles gelöscht, wieder ab Zeile 2), liest die Planung bei jedem Start neu,
+und ergänzt fehlende Ertragsformeln. Die Referenzwerte bleiben unangetastet.
+
+Die Leergewichte der Gebindearten stehen in `src/lib/constants.ts` (`GEBINDEARTEN`) —
+G2 1,5 kg, IFCO 6410 1,36 kg, 6416 1,68 kg, 6424 2,0 kg, Palette 25 kg. Ändern sie sich,
+ist das die einzige Stelle.
 
 ## Wie die Daten im Sheet geschützt sind
 
@@ -114,7 +193,7 @@ Kopfzeile ist grundsätzlich ausgeschlossen.
 **2. Zeilenprüfung vor jeder Änderung.** Die App merkt sich, in welcher Zeile eine
 Palette steht. Wird das Sheet zwischenzeitlich von Hand sortiert oder wird oben eine
 Zeile eingefügt, zeigen diese Nummern plötzlich auf fremde Daten. Deshalb liest die
-App die Zeile vor jedem Ändern oder Löschen erneut und vergleicht Person und Feld mit
+App die Zeile vor jedem Ändern oder Löschen erneut und vergleicht die Palettenkennung mit
 dem erwarteten Inhalt. Bei Abweichung bricht sie ab und meldet den Grund, statt eine
 unbeteiligte Zeile zu überschreiben.
 
@@ -139,7 +218,7 @@ unterscheiden, ob eine Änderung von der App oder von einer Person kam.
 
 ### Empfehlung fürs Sheet
 
-Wenn auf den Spalten Person, Feld oder Sorte eine Datenüberprüfung mit fester
+Wenn auf den Spalten Person, Schlag oder Sorte eine Datenüberprüfung mit fester
 Auswahlliste liegt, markiert Google jede in der App neu angelegte Bezeichnung rot als
 "ungültig". Die Auswahl liefert inzwischen die App selbst, daher ist die Prüfung dort
 verzichtbar: Spalte markieren → **Daten → Datenüberprüfung** → Regel entfernen.

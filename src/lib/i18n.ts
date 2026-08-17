@@ -61,8 +61,10 @@ const TEXTS = {
     pl: "Osoba",
     pt: "Pessoa",
   },
+  // Heisst absichtlich "Schlag" wie in der Anbauplanung - dieselbe Sache soll überall
+  // gleich heissen, im Sheet, in der App und auf dem Plan.
   field: {
-    de: "Feld",
+    de: "Schlag",
     en: "Field",
     hu: "Terület",
     pl: "Pole",
@@ -95,6 +97,104 @@ const TEXTS = {
     hu: "Új érték hozzáadása",
     pl: "Dodaj nową wartość",
     pt: "Adicionar novo valor",
+  },
+
+  // --- Geschützte Neuanlage (nur Betriebsleiter) ---
+  // Steht als letzter Eintrag im Dropdown. Die Pluszeichen heben ihn von den
+  // Schlag- und Sortennamen ab; ein natives Auswahlfeld lässt sich nicht einfärben.
+  addNewOption: {
+    de: "+++ Neu +++",
+    en: "+++ New +++",
+    hu: "+++ Új +++",
+    pl: "+++ Nowy +++",
+    pt: "+++ Novo +++",
+  },
+  newFieldTitle: {
+    de: "Neuer Schlag",
+    en: "New field",
+    hu: "Új terület",
+    pl: "Nowe pole",
+    pt: "Novo campo",
+  },
+  newVarietyTitle: {
+    de: "Neue Sorte",
+    en: "New variety",
+    hu: "Új fajta",
+    pl: "Nowa odmiana",
+    pt: "Nova variedade",
+  },
+  adminOnly: {
+    de: "Nur für den Betriebsleiter.",
+    en: "For the farm manager only.",
+    hu: "Csak az üzemvezetőnek.",
+    pl: "Tylko dla kierownika.",
+    pt: "Apenas para o gestor.",
+  },
+  passwordLabel: {
+    de: "Passwort",
+    en: "Password",
+    hu: "Jelszó",
+    pl: "Hasło",
+    pt: "Palavra-passe",
+  },
+  passwordWrong: {
+    de: "Passwort stimmt nicht.",
+    en: "Wrong password.",
+    hu: "Hibás jelszó.",
+    pl: "Błędne hasło.",
+    pt: "Palavra-passe errada.",
+  },
+  varietyOnField: {
+    de: "Sorte auf diesem Schlag",
+    en: "Variety on this field",
+    hu: "Fajta ezen a területen",
+    pl: "Odmiana na tym polu",
+    pt: "Variedade neste campo",
+  },
+  // Ein neuer Schlag ohne Sorte wäre nicht bewiegbar - beides wird zusammen erfasst.
+  newFieldNeedsVariety: {
+    de: "Bitte Schlag und Sorte angeben.",
+    en: "Please enter field and variety.",
+    hu: "Adj meg területet és fajtát.",
+    pl: "Podaj pole i odmianę.",
+    pt: "Indique campo e variedade.",
+  },
+  selectFieldFirst: {
+    de: "Zuerst den Schlag wählen.",
+    en: "Choose the field first.",
+    hu: "Először válassz területet.",
+    pl: "Najpierw wybierz pole.",
+    pt: "Escolha primeiro o campo.",
+  },
+
+  // --- Einrichtung des Dokuments ---
+  setupSheet: {
+    de: "Sheet einrichten",
+    en: "Set up sheet",
+    hu: "Táblázat beállítása",
+    pl: "Skonfiguruj arkusz",
+    pt: "Configurar folha",
+  },
+  setupRunning: {
+    de: "Wird eingerichtet …",
+    en: "Setting up …",
+    hu: "Beállítás …",
+    pl: "Konfigurowanie …",
+    pt: "A configurar …",
+  },
+  setupDone: {
+    de: "Einrichtung fertig",
+    en: "Setup complete",
+    hu: "A beállítás kész",
+    pl: "Konfiguracja gotowa",
+    pt: "Configuração concluída",
+  },
+  setupSkipped: {
+    de: "War schon in Ordnung",
+    en: "Already fine",
+    hu: "Már rendben volt",
+    pl: "Już było dobrze",
+    pt: "Já estava bem",
   },
   startWeighing: {
     de: "Weiter zum Wiegen",
@@ -366,7 +466,7 @@ const TEXTS = {
     pt: "Iniciar nova entrega?",
   },
   startNewDeliveryMsg: {
-    de: "Die erfassten Paletten bleiben im Sheet. Feld und Sorte werden zurückgesetzt.",
+    de: "Die erfassten Paletten bleiben im Sheet. Schlag und Sorte werden zurückgesetzt.",
     en: "The saved pallets stay in the sheet. Field and variety are reset.",
     hu: "A mentett paletták a táblázatban maradnak. A terület és a fajta törlődik.",
     pl: "Zapisane palety zostają w arkuszu. Pole i odmiana zostaną wyczyszczone.",
