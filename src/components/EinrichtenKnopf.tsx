@@ -83,6 +83,7 @@ export function EinrichtenKnopf({
         <NeuDialog
           lang={lang}
           titel={t(lang, "setupSheet")}
+          beschreibung={t(lang, "setupExplain")}
           // Nur das Passwort; die Einrichtung braucht keine weiteren Angaben.
           felder={[]}
           onAbbrechen={() => setDialogOffen(false)}

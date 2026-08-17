@@ -140,9 +140,10 @@ npm run dev
 
 | Blatt | Inhalt |
 | --- | --- |
-| `Ertragsjournal` | Eine Zeile pro Palette, chronologisch. Spalten A–H von der App bzw. von Hand, I und J als Formel (Netto), K die Palettenkennung |
+| `Ertragsjournal` | Zeile 1 Hinweis, Zeile 2 Köpfe, ab Zeile 3 eine Zeile pro Palette. Spalten A–H von der App bzw. von Hand, I und J als Formel (Netto), K die Palettenkennung (ausgeblendet) |
 | `Anbauplanung Ertrag` | Schlag, Sorte, Ertrag. Zeile 1 Hinweis, Zeile 2 Köpfe, Daten ab Zeile 3 |
 | `Referenzwerte` | Je Sorte die aufsummierten Paletten, Kisten und Kilos |
+| `Read Me` | Kurzanleitung im Dokument selbst — was beim Saisonstart wichtig ist |
 
 **Der Ertrag ist eine Formel**, kein von der App geschriebener Wert:
 
@@ -167,14 +168,18 @@ den sie letztes Jahr hatte, statt wieder bei null.
 
 Es braucht keine Funktion in der App. Der Betriebsleiter arbeitet direkt im Sheet:
 
-1. Im `Ertragsjournal` die Zeilen **ab Zeile 2** löschen (Kopfzeile stehen lassen). Wer
-   die Vorjahresdaten behalten will, kopiert sie vorher heraus oder duplizert den Tab.
+1. Im `Ertragsjournal` die Zeilen **ab Zeile 3** löschen (Zeile 1 Hinweis und Zeile 2
+   Köpfe stehen lassen). Wer die Vorjahresdaten behalten will, kopiert sie vorher heraus
+   oder dupliziert den Tab.
 2. In `Anbauplanung Ertrag` die Zeilen **ab Zeile 3** löschen und die neue Planung direkt
    darunter einfügen — nur Spalte A und B, ohne Leerzeile.
 
-Die App kommt damit von selbst zurecht: Sie hängt neue Paletten immer unter den letzten
-Eintrag (ist alles gelöscht, wieder ab Zeile 2), liest die Planung bei jedem Start neu,
-und ergänzt fehlende Ertragsformeln. Die Referenzwerte bleiben unangetastet.
+Eine Kurzfassung davon steht auch im Blatt `Read Me` direkt im Dokument.
+
+Die App kommt damit **ohne Knopfdruck** zurecht: Sie hängt neue Paletten immer unter den
+letzten Eintrag (ist alles gelöscht, wieder ab Zeile 3), liest die Planung bei jedem Start
+neu, und **ergänzt fehlende Ertragsformeln beim Öffnen von selbst**. Die Referenzwerte
+bleiben unangetastet. Der Knopf „Sheet einrichten" ist dafür nicht nötig.
 
 Die Leergewichte der Gebindearten stehen in `src/lib/constants.ts` (`GEBINDEARTEN`) —
 G2 1,5 kg, IFCO 6410 1,36 kg, 6416 1,68 kg, 6424 2,0 kg, Palette 25 kg. Ändern sie sich,

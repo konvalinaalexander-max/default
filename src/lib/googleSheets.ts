@@ -3,7 +3,6 @@ import { google, sheets_v4 } from "googleapis";
 import {
   ALTE_JOURNAL_TITEL,
   COLUMNS,
-  FIRST_DATA_ROW,
   blattRef,
   GEBINDEARTEN,
   JOURNAL_SHEET,
@@ -15,6 +14,7 @@ import {
   STANDARD_GEBINDEART,
   gewichtProKiste,
   isoZuSheetDatum,
+  istDatenzeile,
   taraFuerGebinde,
 } from "./constants";
 import { fasseZusammen } from "./plausibility";
@@ -170,50 +170,62 @@ function formelWerte(row: number, gebindeart?: string | null): string[] {
   return [`=E${row}-${PALETTE_TARA_KG}-F${row}*${tara}`, `=I${row}/F${row}`];
 }
 
-/** Liest alle bisherigen Datenzeilen des Journals (roh, ohne Formeln aufzulösen). */
+/**
+ * Liest alle bisherigen Datenzeilen des Journals (roh, ohne Formeln aufzulösen).
+ *
+ * Bewusst ab Zeile 1 und dann nach Datenform gefiltert statt ab einer festen Startzeile:
+ * So ist es gleichgültig, ob die Köpfe in Zeile 1 oder (mit Info-Zeile darüber) in Zeile 2
+ * stehen. Die Zeilennummer bleibt korrekt, weil ab Zeile 1 gezählt wird.
+ */
 async function readAllDataRows(): Promise<{ row: number; values: unknown[] }[]> {
   const sheets = getClient();
   const res = await mitJournalTab((tab) =>
     sheets.spreadsheets.values.get({
       spreadsheetId: getSheetId(),
-      range: `${blattRef(tab)}!A${FIRST_DATA_ROW}:${LETZTE_SPALTE}100000`,
+      range: `${blattRef(tab)}!A1:${LETZTE_SPALTE}100000`,
       valueRenderOption: "UNFORMATTED_VALUE",
     })
   );
   const rows = res.data.values ?? [];
   return rows
-    .map((values, i) => ({ row: FIRST_DATA_ROW + i, values }))
-    .filter((r) => r.values.some((v) => v !== "" && v !== undefined && v !== null));
+    .map((values, i) => ({ row: 1 + i, values }))
+    .filter((r) => istDatenzeile(r.values));
 }
 
 export interface Planung {
   schlaege: string[];
   sortenNachSchlag: Record<string, string[]>;
   sorten: string[];
+  /** True, wenn zu mindestens einer Schlag-Sorte-Zeile die Ertragsformel in Spalte C fehlt. */
+  formelnFehlen: boolean;
 }
 
 /**
  * Liest die Anbauplanung: welche Sorte steht auf welchem Schlag.
  *
  * Leerzeilen werden übersprungen statt als Ende gewertet - eine einzige versehentlich
- * leere Zeile würde sonst alles darunter unsichtbar machen.
+ * leere Zeile würde sonst alles darunter unsichtbar machen. Zusätzlich wird gemeldet, ob
+ * in Spalte C Ertragsformeln fehlen - dann ergänzt die App sie beim Laden von selbst.
  */
 export async function readPlanung(): Promise<Planung> {
   const sheets = getClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: getSheetId(),
-    range: `${blattRef(PLAN_SHEET)}!A${PLAN_FIRST_DATA_ROW}:B10000`,
-    valueRenderOption: "UNFORMATTED_VALUE",
+    range: `${blattRef(PLAN_SHEET)}!A${PLAN_FIRST_DATA_ROW}:C10000`,
+    // FORMULA, damit eine vorhandene Ertragsformel als "=..." erkennbar ist.
+    valueRenderOption: "FORMULA",
   });
 
   const sortenNachSchlag: Record<string, string[]> = {};
   const schlaege: string[] = [];
   const alleSorten = new Set<string>();
+  let formelnFehlen = false;
 
   for (const zeile of res.data.values ?? []) {
     const schlag = String(zeile[0] ?? "").trim();
     const sorte = String(zeile[1] ?? "").trim();
     if (!schlag || !sorte) continue;
+    if (!String(zeile[2] ?? "").trim().startsWith("=")) formelnFehlen = true;
     if (!sortenNachSchlag[schlag]) {
       sortenNachSchlag[schlag] = [];
       schlaege.push(schlag);
@@ -222,7 +234,12 @@ export async function readPlanung(): Promise<Planung> {
     alleSorten.add(sorte);
   }
 
-  return { schlaege, sortenNachSchlag, sorten: [...alleSorten].sort((a, b) => a.localeCompare(b)) };
+  return {
+    schlaege,
+    sortenNachSchlag,
+    sorten: [...alleSorten].sort((a, b) => a.localeCompare(b)),
+    formelnFehlen,
+  };
 }
 
 /**
@@ -416,6 +433,9 @@ export async function getReferenceData(): Promise<ReferenceData> {
     vorwissen,
     allgemeinesVorwissen,
     planungGelesen: planung !== null,
+    // Wird von der Lade-Route ausgewertet: fehlt eine Ertragsformel, ergänzt sie die App
+    // selbst - so ist der Saisonstart ohne Knopfdruck erledigt.
+    formelnFehlen: planung?.formelnFehlen ?? false,
   };
 }
 
@@ -432,20 +452,24 @@ function parseRowFromRange(range: string | null | undefined): number {
   return Number(m[1]);
 }
 
-/** Sucht die Zeile einer Palettenkennung. Gibt null zurück, wenn sie nicht im Sheet steht. */
+/**
+ * Sucht die Zeile einer Palettenkennung. Gibt null zurück, wenn sie nicht im Sheet steht.
+ * Liest ab Zeile 1 (Kopf- und Info-Zeile tragen keine echte Kennung), damit die Zeile
+ * unabhängig von der Kopfzeilen-Position gefunden wird.
+ */
 async function findeZeileZuId(id: string): Promise<number | null> {
   const sheets = getClient();
   const spalte = colLetter(COLUMNS.id);
   const res = await mitJournalTab((tab) =>
     sheets.spreadsheets.values.get({
       spreadsheetId: getSheetId(),
-      range: `${blattRef(tab)}!${spalte}${FIRST_DATA_ROW}:${spalte}100000`,
+      range: `${blattRef(tab)}!${spalte}1:${spalte}100000`,
       valueRenderOption: "UNFORMATTED_VALUE",
     })
   );
   const werte = res.data.values ?? [];
   for (let i = 0; i < werte.length; i++) {
-    if (String(werte[i]?.[0] ?? "").trim() === id) return FIRST_DATA_ROW + i;
+    if (String(werte[i]?.[0] ?? "").trim() === id) return 1 + i;
   }
   return null;
 }

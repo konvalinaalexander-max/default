@@ -12,6 +12,8 @@ export interface NeuFeld {
 interface NeuDialogProps {
   lang: Lang;
   titel: string;
+  /** Optionaler Erklärtext unter dem Titel (statt des Standard-Hinweises "nur für Betriebsleiter"). */
+  beschreibung?: string;
   felder: NeuFeld[];
   onAbbrechen: () => void;
   /** Wird erst nach richtigem Passwort aufgerufen; alle Felder sind dann gefüllt. */
@@ -23,7 +25,14 @@ interface NeuDialogProps {
  * Schritt davor: So ist sofort sichtbar, dass die Neuanlage nicht für alle gedacht ist,
  * und es bleibt bei einer einzigen Bestätigung.
  */
-export function NeuDialog({ lang, titel, felder, onAbbrechen, onSpeichern }: NeuDialogProps) {
+export function NeuDialog({
+  lang,
+  titel,
+  beschreibung,
+  felder,
+  onAbbrechen,
+  onSpeichern,
+}: NeuDialogProps) {
   const [passwort, setPasswort] = useState("");
   const [werte, setWerte] = useState<Record<string, string>>({});
   const [fehler, setFehler] = useState<string | null>(null);
@@ -53,7 +62,7 @@ export function NeuDialog({ lang, titel, felder, onAbbrechen, onSpeichern }: Neu
         className="w-full max-w-sm rounded-2xl border-2 border-neutral-200 bg-white p-5 shadow-xl"
       >
         <h2 className="text-xl font-bold text-neutral-900">{titel}</h2>
-        <p className="mt-1 text-sm text-neutral-500">{t(lang, "adminOnly")}</p>
+        <p className="mt-1 text-sm text-neutral-500">{beschreibung ?? t(lang, "adminOnly")}</p>
 
         <div className="mt-4 flex flex-col gap-3">
           <label className="flex flex-col gap-1">

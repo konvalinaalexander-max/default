@@ -4,21 +4,23 @@ import { ANBAUPLANUNG_SEED } from "./anbauplanungSeed";
 import {
   ALTE_JOURNAL_TITEL,
   COLUMNS,
-  FIRST_DATA_ROW,
   HEADER_ROW,
   JOURNAL_HEADER,
+  JOURNAL_HINWEIS_ROW,
   JOURNAL_SHEET,
   PLAN_FIRST_DATA_ROW,
   PLAN_HEADER,
   PLAN_HEADER_ROW,
   PLAN_HINWEIS_ROW,
   PLAN_SHEET,
+  README_SHEET,
   REFERENZ_FIRST_DATA_ROW,
   REFERENZ_HEADER,
   REFERENZ_HEADER_ROW,
   REFERENZ_SHEET,
-  netGewichtProPalette,
   blattRef,
+  istDatenzeile,
+  netGewichtProPalette,
 } from "./constants";
 import { colLetter, getClient, getSheetId, vergesseJournalTab } from "./googleSheets";
 
@@ -33,11 +35,37 @@ export const PLAN_HINWEIS =
   "so, wie sie in der App erscheint — Namen während der Saison nicht mehr ändern, sonst " +
   "finden bereits erfasste Paletten ihren Ertrag nicht mehr.";
 
-const JOURNAL_NOTIZ =
-  "Zeile 1 sind die Spaltenköpfe — nicht löschen. Beim Saisonstart nur die Zeilen ab " +
-  "Zeile 2 löschen. Die App schreibt neue Einträge automatisch unter den letzten " +
-  "Eintrag; ist alles gelöscht, beginnt sie wieder in Zeile 2. Die Spalten I, J und K " +
-  "werden von der App gesetzt — nicht von Hand ändern.";
+// Sichtbare Info-Zeile im Ertragsjournal - dasselbe Prinzip wie in der Anbauplanung.
+export const JOURNAL_HINWEIS =
+  "SAISONSTART: Nur die Zeilen ab Zeile 3 löschen — Zeile 1 (dieser Hinweis) und Zeile 2 " +
+  "(die Spaltenköpfe) stehen lassen. Die App schreibt neue Einträge automatisch unter den " +
+  "letzten Eintrag; ist alles gelöscht, beginnt sie wieder in Zeile 3. Die Spalten I und J " +
+  "(Netto) und K (ID) setzt die App — nicht von Hand ändern.";
+
+/** Inhalt des Read-Me-Blatts (eine Zeile je Absatz, Spalte A). */
+const README_INHALT: string[] = [
+  "Kürbis Anbauplanung Journal Ertrag — Kurzanleitung",
+  "Dieses Dokument hat drei Arbeitsblätter: „Ertragsjournal“ (jede gewogene Palette einzeln), " +
+    "„Anbauplanung Ertrag“ (welche Sorte auf welchem Schlag wächst, plus aufsummierter Ertrag) " +
+    "und „Referenzwerte“ (Erfahrungswerte pro Sorte über die Jahre).",
+  "SAISONSTART — so wird korrekt zurückgesetzt:",
+  "1. Im „Ertragsjournal“ die Zeilen ab Zeile 3 löschen. Zeile 1 (Hinweis) und Zeile 2 " +
+    "(Spaltenköpfe) stehen lassen.",
+  "2. In „Anbauplanung Ertrag“ die Zeilen ab Zeile 3 löschen und die neue Planung direkt " +
+    "darunter einfügen — nur Schlag (Spalte A) und Sorte (Spalte B), ohne Leerzeile dazwischen. " +
+    "Spalte C (Ertrag) nicht ausfüllen, sie rechnet sich selbst.",
+  "3. „Referenzwerte“ NICHT löschen — das ist das Erfahrungswissen aus den Vorjahren. Es hilft " +
+    "der App, ungewöhnliche Gewichte zu erkennen, und würde sonst wieder bei null anfangen.",
+  "WICHTIG: Schlag und Sorte müssen genau so geschrieben sein, wie sie in der App erscheinen. " +
+    "Namen während der Saison nicht mehr ändern, sonst finden bereits erfasste Paletten ihren " +
+    "Ertrag nicht mehr. Steht in „Anbauplanung Ertrag“ oben rechts nicht „Nicht zugeordnet: 0 kg“, " +
+    "passt eine Schreibweise nicht zusammen.",
+  "Der Knopf „Sheet einrichten“ in der App ist zum Jahreswechsel NICHT nötig — die App richtet " +
+    "sich beim ersten Öffnen selbst ein (sie ergänzt die Ertragsformeln von allein). Der Knopf ist " +
+    "nur zum Reparieren da, falls einmal etwas durcheinandergerät. Er ändert nie Daten, sondern " +
+    "stellt nur die Struktur wieder her.",
+  "Die App benutzen die Erntehelfer. Diese Blätter und ihre Struktur bitte nicht umbauen.",
+];
 
 export interface EinrichtungsBericht {
   erledigt: string[];
@@ -48,22 +76,28 @@ export interface EinrichtungsBericht {
 interface BlattInfo {
   titel: string;
   gid: number;
-  zeilen: number;
   spalten: number;
   frozenRows: number;
+  neu: boolean;
+}
+
+interface JournalKopf {
+  /** Köpfe stehen bereits in Zeile 2 (Info-Zeile darüber vorhanden). */
+  migriert: boolean;
+  /** Köpfe stehen in Zeile 1 mit Daten darunter - eine Info-Zeile muss eingefügt werden. */
+  braucheInsert: boolean;
+  /** In Zeile 1 steht schon ein Hinweis (nicht überschreiben - evtl. von Hand formatiert). */
+  infoVorhanden: boolean;
 }
 
 /**
- * Richtet das Dokument einmalig ein und kann jederzeit erneut laufen: Jeder Schritt
- * prüft zuerst, ob er schon erledigt ist. Datenzeilen werden nie gelöscht.
+ * Richtet das Dokument ein und kann jederzeit erneut laufen: Jeder Schritt prüft zuerst,
+ * ob er nötig ist. Datenzeilen werden nie gelöscht. Von Hand vorgenommene Formatierungen
+ * der Hinweiszeilen bleiben erhalten (sie werden nur neu geschrieben, wenn sie fehlen).
  */
 export async function richteSheetEin(): Promise<EinrichtungsBericht> {
   const sheets = getClient();
-  const bericht: EinrichtungsBericht = {
-    erledigt: [],
-    uebersprungen: [],
-    formelSprache: "englisch",
-  };
+  const bericht: EinrichtungsBericht = { erledigt: [], uebersprungen: [], formelSprache: "englisch" };
 
   const meta = await sheets.spreadsheets.get({
     spreadsheetId: getSheetId(),
@@ -74,42 +108,59 @@ export async function richteSheetEin(): Promise<EinrichtungsBericht> {
   const blaetter: BlattInfo[] = (meta.data.sheets ?? []).map((s) => ({
     titel: s.properties?.title ?? "",
     gid: s.properties?.sheetId ?? 0,
-    zeilen: s.properties?.gridProperties?.rowCount ?? 1000,
     spalten: s.properties?.gridProperties?.columnCount ?? 26,
     frozenRows: s.properties?.gridProperties?.frozenRowCount ?? 0,
+    neu: false,
   }));
 
   const journal = await findeJournal(blaetter, bericht);
+  const kopf = await leseJournalKopf(journal.titel);
 
-  // --- Sicherungskopie, bevor irgendetwas verändert wird ---
-  await legeSicherungAn(sheets, blaetter, journal, bericht);
+  // --- Sicherung nur beim echten Erststart (Tab wird noch umbenannt). Ist der Tab schon
+  // "Ertragsjournal", wurde bereits eingerichtet; das Einfügen der Info-Zeile ist ein
+  // reines Verschieben und kann keine Daten verlieren, also braucht es keine Kopie. ---
+  if (journal.titel !== JOURNAL_SHEET) {
+    await legeSicherungAn(sheets, blaetter, journal, bericht);
+  } else {
+    bericht.uebersprungen.push("Keine Sicherung nötig (bereits eingerichtet)");
+  }
 
-  // --- Fehlende Blätter anlegen ---
   const plan = await stelleBlattSicher(sheets, blaetter, PLAN_SHEET, bericht);
   const referenz = await stelleBlattSicher(sheets, blaetter, REFERENZ_SHEET, bericht);
+  const readme = await stelleBlattSicher(sheets, blaetter, README_SHEET, bericht);
 
-  // Ob die Schnittstelle Formeln auf Englisch oder Deutsch erwartet, hängt an der
-  // Spracheinstellung des Dokuments. Statt zu raten wird es einmal ausprobiert.
+  // Hinweiszeilen nur schreiben, wenn sie leer sind - eine von Hand angepasste Formulierung
+  // oder Formatierung soll nicht überschrieben werden.
+  const planHintNeu = plan.neu || (await zelleLeer(PLAN_SHEET, PLAN_HINWEIS_ROW, "A"));
+  const journalHintNeu = kopf.braucheInsert || !kopf.infoVorhanden;
+  const readmeNeu = readme.neu || (await zelleLeer(README_SHEET, 1, "A"));
+
   formelSpracheCache = await ermittleFormelSprache(sheets, referenz.titel);
   bericht.formelSprache = formelSpracheCache;
 
-  // --- Dokument und Journal-Tab umbenennen ---
-  const anfragen: sheets_v4.Schema$Request[] = [];
+  // --- Strukturbatch. Reihenfolge zählt: Das Einfügen der Zeile steht ganz vorne, damit
+  // alle folgenden zeilenbezogenen Anfragen den schon verschobenen Stand sehen. ---
+  const req: sheets_v4.Schema$Request[] = [];
 
-  if (meta.data.properties?.title !== DOKUMENT_TITEL) {
-    anfragen.push({
-      updateSpreadsheetProperties: {
-        properties: { title: DOKUMENT_TITEL },
-        fields: "title",
+  if (kopf.braucheInsert) {
+    req.push({
+      insertDimension: {
+        range: { sheetId: journal.gid, dimension: "ROWS", startIndex: 0, endIndex: 1 },
+        inheritFromBefore: false,
       },
     });
+    bericht.erledigt.push("Info-Zeile im Ertragsjournal eingefügt (Köpfe jetzt in Zeile 2)");
+  }
+
+  if (meta.data.properties?.title !== DOKUMENT_TITEL) {
+    req.push({ updateSpreadsheetProperties: { properties: { title: DOKUMENT_TITEL }, fields: "title" } });
     bericht.erledigt.push(`Dokument umbenannt in "${DOKUMENT_TITEL}"`);
   } else {
     bericht.uebersprungen.push("Dokumentname war schon richtig");
   }
 
   if (journal.titel !== JOURNAL_SHEET) {
-    anfragen.push({
+    req.push({
       updateSheetProperties: {
         properties: { sheetId: journal.gid, title: JOURNAL_SHEET },
         fields: "title",
@@ -120,147 +171,90 @@ export async function richteSheetEin(): Promise<EinrichtungsBericht> {
     bericht.uebersprungen.push("Journal-Tab hiess schon richtig");
   }
 
-  // --- Spalte K muss existieren, sonst lässt sich die Kennung nicht schreiben ---
+  // Spalte K für die Kennung.
   if (journal.spalten < COLUMNS.id) {
-    anfragen.push({
-      appendDimension: {
-        sheetId: journal.gid,
-        dimension: "COLUMNS",
-        length: COLUMNS.id - journal.spalten,
-      },
+    req.push({
+      appendDimension: { sheetId: journal.gid, dimension: "COLUMNS", length: COLUMNS.id - journal.spalten },
     });
   }
 
-  // --- Kopfzeilen einfrieren ---
-  anfragen.push(
-    ...einfrieren(journal.gid, journal.frozenRows, HEADER_ROW, "Ertragsjournal", bericht)
-  );
-  anfragen.push(...einfrieren(plan.gid, plan.frozenRows, PLAN_HEADER_ROW, "Anbauplanung", bericht));
-  anfragen.push(
-    ...einfrieren(referenz.gid, referenz.frozenRows, REFERENZ_HEADER_ROW, "Referenzwerte", bericht)
-  );
+  // Einfrieren.
+  req.push(...einfrieren(journal.gid, journal.frozenRows, HEADER_ROW, "Ertragsjournal", bericht, kopf.braucheInsert));
+  req.push(...einfrieren(plan.gid, plan.frozenRows, PLAN_HEADER_ROW, "Anbauplanung", bericht, false));
+  req.push(...einfrieren(referenz.gid, referenz.frozenRows, REFERENZ_HEADER_ROW, "Referenzwerte", bericht, false));
 
-  // --- Notiz am Journal-Kopf, ID-Spalte ausblenden ---
-  anfragen.push({
-    updateCells: {
-      range: {
-        sheetId: journal.gid,
-        startRowIndex: HEADER_ROW - 1,
-        endRowIndex: HEADER_ROW,
-        startColumnIndex: 0,
-        endColumnIndex: 1,
-      },
-      rows: [{ values: [{ note: JOURNAL_NOTIZ }] }],
-      fields: "note",
-    },
-  });
-  anfragen.push({
+  // ID-Spalte ausblenden.
+  req.push({
     updateDimensionProperties: {
-      range: {
-        sheetId: journal.gid,
-        dimension: "COLUMNS",
-        startIndex: COLUMNS.id - 1,
-        endIndex: COLUMNS.id,
-      },
+      range: { sheetId: journal.gid, dimension: "COLUMNS", startIndex: COLUMNS.id - 1, endIndex: COLUMNS.id },
       properties: { hiddenByUser: true },
       fields: "hiddenByUser",
     },
   });
 
-  // --- Hinweiszeile der Anbauplanung über A1:C1 verbinden und umbrechen ---
-  const planMerges = (meta.data.sheets ?? []).find((s) => s.properties?.sheetId === plan.gid)
-    ?.merges;
-  const schonVerbunden = (planMerges ?? []).some(
-    (m) => m.startRowIndex === PLAN_HINWEIS_ROW - 1 && m.endColumnIndex === PLAN_HEADER.length
-  );
-  if (!schonVerbunden) {
-    anfragen.push({
-      mergeCells: {
-        range: {
-          sheetId: plan.gid,
-          startRowIndex: PLAN_HINWEIS_ROW - 1,
-          endRowIndex: PLAN_HINWEIS_ROW,
-          startColumnIndex: 0,
-          endColumnIndex: PLAN_HEADER.length,
-        },
-        mergeType: "MERGE_ALL",
-      },
-    });
+  // Info-Zeilen verbinden + formatieren, aber nur wenn wir sie auch schreiben.
+  if (journalHintNeu) {
+    req.push(...verbindeUndFormatiere(journal.gid, JOURNAL_HINWEIS_ROW, JOURNAL_HEADER.length));
   }
-  anfragen.push({
-    repeatCell: {
-      range: {
-        sheetId: plan.gid,
-        startRowIndex: PLAN_HINWEIS_ROW - 1,
-        endRowIndex: PLAN_HINWEIS_ROW,
-        startColumnIndex: 0,
-        endColumnIndex: PLAN_HEADER.length,
-      },
-      cell: {
-        userEnteredFormat: {
-          wrapStrategy: "WRAP",
-          verticalAlignment: "TOP",
-          textFormat: { bold: true },
-        },
-      },
-      fields: "userEnteredFormat(wrapStrategy,verticalAlignment,textFormat)",
-    },
-  });
+  if (planHintNeu) {
+    req.push(...verbindeUndFormatiere(plan.gid, PLAN_HINWEIS_ROW, PLAN_HEADER.length));
+  }
 
-  // --- Kopfzeilen fett ---
+  // Kopfzeilen fett.
   for (const [gid, zeile, breite] of [
     [journal.gid, HEADER_ROW, JOURNAL_HEADER.length],
     [plan.gid, PLAN_HEADER_ROW, PLAN_HEADER.length],
     [referenz.gid, REFERENZ_HEADER_ROW, REFERENZ_HEADER.length],
   ] as const) {
-    anfragen.push({
-      repeatCell: {
-        range: {
-          sheetId: gid,
-          startRowIndex: zeile - 1,
-          endRowIndex: zeile,
-          startColumnIndex: 0,
-          endColumnIndex: breite,
+    req.push(fettZeile(gid, zeile, breite));
+  }
+
+  // Read-Me breit und umbrechend.
+  if (readmeNeu) {
+    req.push(
+      {
+        updateDimensionProperties: {
+          range: { sheetId: readme.gid, dimension: "COLUMNS", startIndex: 0, endIndex: 1 },
+          properties: { pixelSize: 720 },
+          fields: "pixelSize",
         },
-        cell: { userEnteredFormat: { textFormat: { bold: true } } },
-        fields: "userEnteredFormat.textFormat.bold",
       },
-    });
+      {
+        repeatCell: {
+          range: { sheetId: readme.gid, startRowIndex: 0, endRowIndex: README_INHALT.length, startColumnIndex: 0, endColumnIndex: 1 },
+          cell: { userEnteredFormat: { wrapStrategy: "WRAP", verticalAlignment: "TOP" } },
+          fields: "userEnteredFormat(wrapStrategy,verticalAlignment)",
+        },
+      },
+      fettZeile(readme.gid, 1, 1)
+    );
   }
 
-  // --- Schutz der Kopfzeilen (mit Warnung, damit niemand ausgesperrt wird) ---
-  const bestehendeSchutzbereiche = (meta.data.sheets ?? []).flatMap((s) =>
-    (s.protectedRanges ?? []).map((p) => ({ gid: s.properties?.sheetId, range: p.range }))
-  );
-  anfragen.push(
-    ...schutz(journal.gid, 0, HEADER_ROW, bestehendeSchutzbereiche, "Ertragsjournal", bericht)
-  );
-  anfragen.push(
-    ...schutz(plan.gid, 0, PLAN_HEADER_ROW, bestehendeSchutzbereiche, "Anbauplanung", bericht)
-  );
-  anfragen.push(
-    ...schutz(
-      referenz.gid,
-      0,
-      REFERENZ_HEADER_ROW,
-      bestehendeSchutzbereiche,
-      "Referenzwerte",
-      bericht
-    )
+  // Schutz der Kopfbereiche: bestehende Kopf-Schutzbereiche entfernen und frisch setzen -
+  // so stimmt die Zeilenzahl immer, auch nachdem die Info-Zeile dazugekommen ist.
+  req.push(
+    ...frischerSchutz(meta.data, journal.gid, HEADER_ROW, "Ertragsjournal", bericht),
+    ...frischerSchutz(meta.data, plan.gid, PLAN_HEADER_ROW, "Anbauplanung", bericht),
+    ...frischerSchutz(meta.data, referenz.gid, REFERENZ_HEADER_ROW, "Referenzwerte", bericht)
   );
 
-  if (anfragen.length > 0) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: getSheetId(),
-      requestBody: { requests: anfragen },
-    });
-    // Der Tab heisst jetzt möglicherweise anders als beim Auflösen - sonst würden die
-    // folgenden Schritte noch den alten Namen verwenden.
-    vergesseJournalTab();
-  }
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId: getSheetId(), requestBody: { requests: req } });
+  vergesseJournalTab();
 
   // --- Werte schreiben (nach dem Umbenennen, damit die Bereiche stimmen) ---
-  await schreibeKopfzeilen(sheets, bericht);
+  await schreibeKopfzeilen(sheets, { planHintNeu, journalHintNeu }, bericht);
+  if (readmeNeu) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: getSheetId(),
+      range: `${blattRef(README_SHEET)}!A1`,
+      valueInputOption: "RAW",
+      requestBody: { values: README_INHALT.map((z) => [z]) },
+    });
+    bericht.erledigt.push('Blatt "Read Me" mit Kurzanleitung gefüllt');
+  } else {
+    bericht.uebersprungen.push('"Read Me" war schon beschrieben');
+  }
+
   await entferneGeisterformeln(sheets, bericht);
   await seedePlanung(sheets, bericht);
   const gesetzt = await ergaenzeErtragsformeln();
@@ -272,14 +266,43 @@ export async function richteSheetEin(): Promise<EinrichtungsBericht> {
   return bericht;
 }
 
+/** Liest A1 und A2 des Journals und leitet daraus ab, was mit der Info-Zeile zu tun ist. */
+async function leseJournalKopf(titel: string): Promise<JournalKopf> {
+  const sheets = getClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: getSheetId(),
+    range: `${blattRef(titel)}!A1:A2`,
+  });
+  const a1 = String(res.data.values?.[0]?.[0] ?? "").trim();
+  const a2 = String(res.data.values?.[1]?.[0] ?? "").trim();
+  const kopfIn1 = a1.toLowerCase().startsWith("datum");
+  const kopfIn2 = a2.toLowerCase().startsWith("datum");
+
+  if (kopfIn2) return { migriert: true, braucheInsert: false, infoVorhanden: a1.length > 0 && !kopfIn1 };
+  if (kopfIn1) return { migriert: false, braucheInsert: true, infoVorhanden: false };
+  // Leeres oder frisches Blatt: nichts zu verschieben, Köpfe kommen in Zeile 2.
+  return { migriert: false, braucheInsert: false, infoVorhanden: false };
+}
+
+async function zelleLeer(blatt: string, zeile: number, spalte: string): Promise<boolean> {
+  const sheets = getClient();
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: getSheetId(),
+      range: `${blattRef(blatt)}!${spalte}${zeile}`,
+    });
+    return String(res.data.values?.[0]?.[0] ?? "").trim().length === 0;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Findet das Journal und prüft, dass es wirklich das Journal ist. Bricht lieber ab, als
- * in ein unbekanntes Blatt zu schreiben.
+ * in ein unbekanntes Blatt zu schreiben. Erkennt die Köpfe in Zeile 1 (noch nicht migriert)
+ * oder Zeile 2 (schon migriert).
  */
-async function findeJournal(
-  blaetter: BlattInfo[],
-  bericht: EinrichtungsBericht
-): Promise<BlattInfo> {
+async function findeJournal(blaetter: BlattInfo[], bericht: EinrichtungsBericht): Promise<BlattInfo> {
   const nachTitel =
     blaetter.find((b) => b.titel === JOURNAL_SHEET) ??
     blaetter.find((b) => ALTE_JOURNAL_TITEL.includes(b.titel)) ??
@@ -296,19 +319,18 @@ async function findeJournal(
   const sheets = getClient();
   const kopf = await sheets.spreadsheets.values.get({
     spreadsheetId: getSheetId(),
-    range: `${nachTitel.titel}!A${HEADER_ROW}:C${FIRST_DATA_ROW}`,
+    range: `${blattRef(nachTitel.titel)}!A1:B2`,
   });
   const zeilen = kopf.data.values ?? [];
-  const a1 = String(zeilen[0]?.[0] ?? "").trim();
-  const b1 = String(zeilen[0]?.[1] ?? "").trim();
   const istLeer = zeilen.length === 0;
+  const passt = (zeile: unknown[] | undefined) =>
+    String(zeile?.[0] ?? "").trim().toLowerCase().startsWith("datum") &&
+    String(zeile?.[1] ?? "").trim().toLowerCase().startsWith("person");
+  const erkannt = passt(zeilen[0]) || passt(zeilen[1]);
 
-  // Entweder erkennbar das Journal, oder noch komplett leer. Alles andere wäre ein
-  // fremdes Blatt - dort darf die Einrichtung nichts anfassen.
-  const erkannt = a1.toLowerCase().startsWith("datum") && b1.toLowerCase().startsWith("person");
   if (!istLeer && !erkannt) {
     throw new Error(
-      `"${nachTitel.titel}" sieht nicht wie das Ertragsjournal aus (A1="${a1}", B1="${b1}"). ` +
+      `"${nachTitel.titel}" sieht nicht wie das Ertragsjournal aus (A1="${String(zeilen[0]?.[0] ?? "")}"). ` +
         `Es wurde nichts verändert.`
     );
   }
@@ -328,18 +350,17 @@ async function legeSicherungAn(
   }
   const daten = await sheets.spreadsheets.values.get({
     spreadsheetId: getSheetId(),
-    range: `${journal.titel}!A${FIRST_DATA_ROW}:A${FIRST_DATA_ROW + 2}`,
+    range: `${blattRef(journal.titel)}!A1:F20`,
+    valueRenderOption: "UNFORMATTED_VALUE",
   });
-  if ((daten.data.values ?? []).length === 0) {
+  if (!(daten.data.values ?? []).some((z) => istDatenzeile(z))) {
     bericht.uebersprungen.push("Keine Sicherung nötig, Journal ist leer");
     return;
   }
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: getSheetId(),
     requestBody: {
-      requests: [
-        { duplicateSheet: { sourceSheetId: journal.gid, newSheetName: SICHERUNG_TITEL } },
-      ],
+      requests: [{ duplicateSheet: { sourceSheetId: journal.gid, newSheetName: SICHERUNG_TITEL } }],
     },
   });
   bericht.erledigt.push(`Sicherungskopie "${SICHERUNG_TITEL}" angelegt`);
@@ -365,9 +386,9 @@ async function stelleBlattSicher(
   return {
     titel,
     gid: props?.sheetId ?? 0,
-    zeilen: props?.gridProperties?.rowCount ?? 1000,
     spalten: props?.gridProperties?.columnCount ?? 26,
     frozenRows: 0,
+    neu: true,
   };
 }
 
@@ -376,13 +397,14 @@ function einfrieren(
   aktuell: number,
   soll: number,
   name: string,
-  bericht: EinrichtungsBericht
+  bericht: EinrichtungsBericht,
+  erzwingen: boolean
 ): sheets_v4.Schema$Request[] {
-  if (aktuell >= soll) {
+  if (aktuell >= soll && !erzwingen) {
     bericht.uebersprungen.push(`${name}: Kopfzeile war schon eingefroren`);
     return [];
   }
-  bericht.erledigt.push(`${name}: Kopfzeile eingefroren`);
+  if (!erzwingen) bericht.erledigt.push(`${name}: Kopfzeile eingefroren`);
   return [
     {
       updateSheetProperties: {
@@ -393,38 +415,67 @@ function einfrieren(
   ];
 }
 
-/**
- * Schutz mit Warnung statt hartem Sperren: Wer die Kopfzeile ändern will, bekommt eine
- * Rückfrage. Ein harter Schutz würde den Betriebsleiter selbst aussperren, sobald einmal
- * etwas angepasst werden muss - das wäre schlimmer als das Problem.
- */
-function schutz(
-  gid: number,
-  startZeileNull: number,
-  bisZeile: number,
-  bestehende: { gid?: number | null; range?: sheets_v4.Schema$GridRange }[],
-  name: string,
-  bericht: EinrichtungsBericht
-): sheets_v4.Schema$Request[] {
-  const schonDa = bestehende.some(
-    (b) => b.gid === gid && (b.range?.endRowIndex ?? 0) >= bisZeile && !b.range?.startColumnIndex
-  );
-  if (schonDa) {
-    bericht.uebersprungen.push(`${name}: Kopfzeile war schon geschützt`);
-    return [];
-  }
-  bericht.erledigt.push(`${name}: Kopfzeile geschützt (mit Warnung)`);
+/** Verbindet die Hinweiszeile über die volle Breite und formatiert sie (umbrechen, fett). */
+function verbindeUndFormatiere(gid: number, zeile: number, breite: number): sheets_v4.Schema$Request[] {
+  const range = {
+    sheetId: gid,
+    startRowIndex: zeile - 1,
+    endRowIndex: zeile,
+    startColumnIndex: 0,
+    endColumnIndex: breite,
+  };
   return [
+    { mergeCells: { range, mergeType: "MERGE_ALL" } },
     {
-      addProtectedRange: {
-        protectedRange: {
-          range: { sheetId: gid, startRowIndex: startZeileNull, endRowIndex: bisZeile },
-          description: "Kopfzeile - bitte nicht löschen",
-          warningOnly: true,
-        },
+      repeatCell: {
+        range,
+        cell: { userEnteredFormat: { wrapStrategy: "WRAP", verticalAlignment: "TOP", textFormat: { bold: true } } },
+        fields: "userEnteredFormat(wrapStrategy,verticalAlignment,textFormat)",
       },
     },
   ];
+}
+
+function fettZeile(gid: number, zeile: number, breite: number): sheets_v4.Schema$Request {
+  return {
+    repeatCell: {
+      range: { sheetId: gid, startRowIndex: zeile - 1, endRowIndex: zeile, startColumnIndex: 0, endColumnIndex: breite },
+      cell: { userEnteredFormat: { textFormat: { bold: true } } },
+      fields: "userEnteredFormat.textFormat.bold",
+    },
+  };
+}
+
+/**
+ * Entfernt bestehende Kopf-Schutzbereiche eines Blatts und legt einen frischen an, der
+ * genau die Kopfzeilen abdeckt. Mit Warnung statt hartem Sperren, damit sich niemand
+ * selbst aussperrt.
+ */
+function frischerSchutz(
+  meta: sheets_v4.Schema$Spreadsheet,
+  gid: number,
+  bisZeile: number,
+  name: string,
+  bericht: EinrichtungsBericht
+): sheets_v4.Schema$Request[] {
+  const blatt = (meta.sheets ?? []).find((s) => s.properties?.sheetId === gid);
+  const alte = (blatt?.protectedRanges ?? []).filter(
+    (p) => (p.range?.startRowIndex ?? 0) === 0 && !p.range?.startColumnIndex
+  );
+  const anfragen: sheets_v4.Schema$Request[] = alte.map((p) => ({
+    deleteProtectedRange: { protectedRangeId: p.protectedRangeId ?? undefined },
+  }));
+  anfragen.push({
+    addProtectedRange: {
+      protectedRange: {
+        range: { sheetId: gid, startRowIndex: 0, endRowIndex: bisZeile },
+        description: "Kopfzeile - bitte nicht löschen",
+        warningOnly: true,
+      },
+    },
+  });
+  bericht.erledigt.push(`${name}: Kopfzeile geschützt (mit Warnung)`);
+  return anfragen;
 }
 
 type Funktionsnamen = { summewenns: string; summe: string; runden: string; wenn: string };
@@ -439,22 +490,17 @@ function funktionsnamen(sprache: "englisch" | "deutsch"): Funktionsnamen {
 let formelSpracheCache: "englisch" | "deutsch" | null = null;
 
 async function holeFormelSprache(sheets: sheets_v4.Sheets): Promise<"englisch" | "deutsch"> {
-  if (!formelSpracheCache) {
-    formelSpracheCache = await ermittleFormelSprache(sheets, REFERENZ_SHEET);
-  }
+  if (!formelSpracheCache) formelSpracheCache = await ermittleFormelSprache(sheets, REFERENZ_SHEET);
   return formelSpracheCache;
 }
 
 /**
  * Probiert eine englische Formel aus und liest das Ergebnis zurück. Je nach
  * Spracheinstellung des Dokuments erwartet die Schnittstelle englische oder deutsche
- * Funktionsnamen; raten wäre unnötig, ein einziger Versuch klärt es.
+ * Funktionsnamen; ein einziger Versuch klärt es.
  */
-async function ermittleFormelSprache(
-  sheets: sheets_v4.Sheets,
-  blatt: string
-): Promise<"englisch" | "deutsch"> {
-  const probe = `${blatt}!Z1`;
+async function ermittleFormelSprache(sheets: sheets_v4.Sheets, blatt: string): Promise<"englisch" | "deutsch"> {
+  const probe = `${blattRef(blatt)}!Z1`;
   try {
     await sheets.spreadsheets.values.update({
       spreadsheetId: getSheetId(),
@@ -467,68 +513,56 @@ async function ermittleFormelSprache(
       range: probe,
       valueRenderOption: "UNFORMATTED_VALUE",
     });
-    const wert = res.data.values?.[0]?.[0];
-    return Number(wert) === 1 ? "englisch" : "deutsch";
+    return Number(res.data.values?.[0]?.[0]) === 1 ? "englisch" : "deutsch";
   } catch {
     return "deutsch";
   } finally {
-    await sheets.spreadsheets.values
-      .clear({ spreadsheetId: getSheetId(), range: probe })
-      .catch(() => undefined);
+    await sheets.spreadsheets.values.clear({ spreadsheetId: getSheetId(), range: probe }).catch(() => undefined);
   }
 }
 
 async function schreibeKopfzeilen(
   sheets: sheets_v4.Sheets,
+  opt: { planHintNeu: boolean; journalHintNeu: boolean },
   bericht: EinrichtungsBericht
 ): Promise<void> {
+  const data: sheets_v4.Schema$ValueRange[] = [
+    {
+      range: `${blattRef(JOURNAL_SHEET)}!A${HEADER_ROW}:${colLetter(JOURNAL_HEADER.length)}${HEADER_ROW}`,
+      values: [[...JOURNAL_HEADER]],
+    },
+    {
+      range: `${blattRef(PLAN_SHEET)}!A${PLAN_HEADER_ROW}:${colLetter(PLAN_HEADER.length)}${PLAN_HEADER_ROW}`,
+      values: [[...PLAN_HEADER]],
+    },
+    {
+      range: `${blattRef(REFERENZ_SHEET)}!A${REFERENZ_HEADER_ROW}:${colLetter(REFERENZ_HEADER.length)}${REFERENZ_HEADER_ROW}`,
+      values: [[...REFERENZ_HEADER]],
+    },
+  ];
+  if (opt.journalHintNeu) {
+    data.push({ range: `${blattRef(JOURNAL_SHEET)}!A${JOURNAL_HINWEIS_ROW}`, values: [[JOURNAL_HINWEIS]] });
+  }
+  if (opt.planHintNeu) {
+    data.push({ range: `${blattRef(PLAN_SHEET)}!A${PLAN_HINWEIS_ROW}`, values: [[PLAN_HINWEIS]] });
+  }
+
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: getSheetId(),
-    requestBody: {
-      valueInputOption: "RAW",
-      data: [
-        {
-          range: `${blattRef(JOURNAL_SHEET)}!A${HEADER_ROW}:${colLetter(JOURNAL_HEADER.length)}${HEADER_ROW}`,
-          values: [[...JOURNAL_HEADER]],
-        },
-        {
-          range: `${blattRef(PLAN_SHEET)}!A${PLAN_HINWEIS_ROW}`,
-          values: [[PLAN_HINWEIS]],
-        },
-        {
-          range: `${blattRef(PLAN_SHEET)}!A${PLAN_HEADER_ROW}:${colLetter(PLAN_HEADER.length)}${PLAN_HEADER_ROW}`,
-          values: [[...PLAN_HEADER]],
-        },
-        {
-          range: `${blattRef(REFERENZ_SHEET)}!A${REFERENZ_HEADER_ROW}:${colLetter(REFERENZ_HEADER.length)}${REFERENZ_HEADER_ROW}`,
-          values: [[...REFERENZ_HEADER]],
-        },
-      ],
-    },
+    requestBody: { valueInputOption: "RAW", data },
   });
-  bericht.erledigt.push(
-    "Spaltenköpfe gesetzt (Feld → Schlag, Brutto → Netto bei den berechneten Spalten)"
-  );
+  bericht.erledigt.push("Spaltenköpfe gesetzt");
 }
 
 /**
- * Entfernt die Netto-Formeln aus Zeilen, in denen gar keine Palette steht.
- *
- * Im Journal waren sie bis Zeile 1000 hinuntergezogen. In einer leeren Zeile ergibt
- * "=E-25-F*1.5" jeweils -25 und die Spalte daneben #DIV/0!. Über 688 Zeilen summiert sich
- * das auf -17'200 kg - wer die Nettospalte von Hand zusammenzählt, erhält einen völlig
- * falschen Wert. Ausserdem hält append() die Tabelle dadurch für 1000 Zeilen lang.
- *
- * Angetastet werden nur Zeilen, in denen die Spalten A bis H komplett leer sind - dort
- * kann keine Palette verloren gehen.
+ * Entfernt Netto-Formeln aus Zeilen ohne Palette. Im Journal waren sie bis Zeile 1000
+ * hinuntergezogen und ergaben in leeren Zeilen je -25 kg. Info- und Kopfzeile bleiben
+ * unberührt, weil sie in Spalte A Text tragen (hatDaten = true).
  */
-async function entferneGeisterformeln(
-  sheets: sheets_v4.Sheets,
-  bericht: EinrichtungsBericht
-): Promise<void> {
+async function entferneGeisterformeln(sheets: sheets_v4.Sheets, bericht: EinrichtungsBericht): Promise<void> {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: getSheetId(),
-    range: `${blattRef(JOURNAL_SHEET)}!A${FIRST_DATA_ROW}:${colLetter(COLUMNS.nettoProKiste)}100000`,
+    range: `${blattRef(JOURNAL_SHEET)}!A1:${colLetter(COLUMNS.nettoProKiste)}100000`,
     valueRenderOption: "UNFORMATTED_VALUE",
   });
   const zeilen = res.data.values ?? [];
@@ -536,15 +570,13 @@ async function entferneGeisterformeln(
   const zuLeeren: string[] = [];
   for (let i = 0; i < zeilen.length; i++) {
     const zeile = zeilen[i] ?? [];
-    const hatDaten = zeile
-      .slice(0, COLUMNS.bemerkung)
-      .some((v) => v !== "" && v !== undefined && v !== null);
+    const hatDaten = zeile.slice(0, COLUMNS.bemerkung).some((v) => v !== "" && v !== undefined && v !== null);
     const hatFormelwerte = [COLUMNS.nettoProPalette, COLUMNS.nettoProKiste].some((sp) => {
       const v = zeile[sp - 1];
       return v !== "" && v !== undefined && v !== null;
     });
     if (!hatDaten && hatFormelwerte) {
-      const nr = FIRST_DATA_ROW + i;
+      const nr = 1 + i;
       zuLeeren.push(
         `${blattRef(JOURNAL_SHEET)}!${colLetter(COLUMNS.nettoProPalette)}${nr}:${colLetter(COLUMNS.nettoProKiste)}${nr}`
       );
@@ -555,21 +587,12 @@ async function entferneGeisterformeln(
     bericht.uebersprungen.push("Keine Formeln in leeren Zeilen gefunden");
     return;
   }
-
-  await sheets.spreadsheets.values.batchClear({
-    spreadsheetId: getSheetId(),
-    requestBody: { ranges: zuLeeren },
-  });
-  bericht.erledigt.push(
-    `Netto-Formeln aus ${zuLeeren.length} leeren Zeilen entfernt (ergaben je -25 kg)`
-  );
+  await sheets.spreadsheets.values.batchClear({ spreadsheetId: getSheetId(), requestBody: { ranges: zuLeeren } });
+  bericht.erledigt.push(`Netto-Formeln aus ${zuLeeren.length} leeren Zeilen entfernt`);
 }
 
 /** Füllt die Anbauplanung nur, wenn sie leer ist - sonst gilt, was im Sheet steht. */
-async function seedePlanung(
-  sheets: sheets_v4.Sheets,
-  bericht: EinrichtungsBericht
-): Promise<void> {
+async function seedePlanung(sheets: sheets_v4.Sheets, bericht: EinrichtungsBericht): Promise<void> {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: getSheetId(),
     range: `${blattRef(PLAN_SHEET)}!A${PLAN_FIRST_DATA_ROW}:B10000`,
@@ -591,10 +614,9 @@ async function seedePlanung(
 }
 
 /**
- * Setzt die Ertragsformel für jede Planungszeile, in der sie fehlt. Dadurch darf am
- * Saisonstart einfach Schlag und Sorte eingefügt werden - die Spalte C ergänzt die App.
- * Zusätzlich der Kontrollwert: Steht dort nicht 0, gibt es Paletten, deren Schlag-Sorte-
- * Kombination in der Planung fehlt - etwa nach einem Umbenennen.
+ * Setzt die Ertragsformel für jede Planungszeile, in der sie fehlt, plus den Kontrollwert.
+ * Wird sowohl beim Einrichten als auch bei jedem Laden (über die Reference-Route)
+ * aufgerufen - so ist der Saisonstart ohne Knopfdruck erledigt.
  */
 export async function ergaenzeErtragsformeln(): Promise<number> {
   const sheets = getClient();
@@ -620,7 +642,6 @@ export async function ergaenzeErtragsformeln(): Promise<number> {
     const bisher = String(zeilen[i]?.[2] ?? "").trim();
     if (!schlag || !sorte) continue;
     if (bisher.startsWith("=")) continue;
-
     daten.push({
       range: `${blattRef(PLAN_SHEET)}!C${zeile}`,
       values: [
@@ -634,14 +655,8 @@ export async function ergaenzeErtragsformeln(): Promise<number> {
     gesetzt++;
   }
 
-  /**
-   * Kontrollwert neben dem Hinweis: Journal-Gesamtsumme minus Summe aller Erträge.
-   *
-   * Die Gesamtsumme darf nicht einfach SUM über die Nettospalte sein: Im Journal sind die
-   * Formeln bis Zeile 1000 hinuntergezogen und ergeben in leeren Zeilen jeweils -25.
-   * Über 688 solche Zeilen wären das -17'200 kg, der Kontrollwert wäre unbrauchbar.
-   * Deshalb wird nur summiert, wo auch Schlag und Sorte stehen.
-   */
+  // Kontrollwert: nur Zeilen mit Schlag UND Sorte summieren (sonst zählten die früheren
+  // Geisterformeln mit -25 kg mit).
   daten.push({
     range: `${blattRef(PLAN_SHEET)}!E${PLAN_HINWEIS_ROW}`,
     values: [
@@ -659,19 +674,14 @@ export async function ergaenzeErtragsformeln(): Promise<number> {
     spreadsheetId: getSheetId(),
     requestBody: { valueInputOption: "USER_ENTERED", data: daten },
   });
-
   return gesetzt;
 }
 
 /**
  * Füllt die Referenzwerte einmalig aus dem bisherigen Journal, damit die App nicht bei
- * null anfängt. Danach wird das Blatt nur noch fortgeschrieben und nie neu berechnet -
- * so übersteht es das Leeren des Journals am Saisonstart.
+ * null anfängt. Danach wird das Blatt nur noch fortgeschrieben und nie neu berechnet.
  */
-async function seedeReferenzwerte(
-  sheets: sheets_v4.Sheets,
-  bericht: EinrichtungsBericht
-): Promise<void> {
+async function seedeReferenzwerte(sheets: sheets_v4.Sheets, bericht: EinrichtungsBericht): Promise<void> {
   const vorhanden = await sheets.spreadsheets.values.get({
     spreadsheetId: getSheetId(),
     range: `${blattRef(REFERENZ_SHEET)}!A${REFERENZ_FIRST_DATA_ROW}:A10000`,
@@ -683,19 +693,18 @@ async function seedeReferenzwerte(
 
   const journal = await sheets.spreadsheets.values.get({
     spreadsheetId: getSheetId(),
-    range: `${blattRef(JOURNAL_SHEET)}!A${FIRST_DATA_ROW}:${colLetter(COLUMNS.gebindeart)}100000`,
+    range: `${blattRef(JOURNAL_SHEET)}!A1:${colLetter(COLUMNS.gebindeart)}100000`,
     valueRenderOption: "UNFORMATTED_VALUE",
   });
 
   const proSorte = new Map<string, { paletten: number; kisten: number; netto: number }>();
   for (const z of journal.data.values ?? []) {
+    if (!istDatenzeile(z)) continue;
     const sorte = String(z[COLUMNS.sorte - 1] ?? "").trim();
     const brutto = Number(z[COLUMNS.gewichtBrutto - 1]);
     const kisten = Number(z[COLUMNS.anzahlKisten - 1]);
     const gebindeart = String(z[COLUMNS.gebindeart - 1] ?? "");
-    if (!sorte || !Number.isFinite(brutto) || !Number.isFinite(kisten) || kisten <= 0) continue;
-    // Bewusst neu gerechnet und nicht aus Spalte I gelesen: Dort steckt für die eine
-    // IFCO-Zeile noch das Leergut des Standardgebindes.
+    if (!sorte) continue;
     const netto = netGewichtProPalette(brutto, kisten, gebindeart);
     if (!Number.isFinite(netto) || netto <= 0) continue;
     const eintrag = proSorte.get(sorte) ?? { paletten: 0, kisten: 0, netto: 0 };

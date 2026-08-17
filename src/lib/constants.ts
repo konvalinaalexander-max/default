@@ -68,6 +68,7 @@ export function taraFuerGebinde(gebindeart?: string | null): number {
 export const JOURNAL_SHEET = "Ertragsjournal";
 export const PLAN_SHEET = "Anbauplanung Ertrag";
 export const REFERENZ_SHEET = "Referenzwerte";
+export const README_SHEET = "Read Me";
 
 /**
  * Namen, unter denen das Journal stehen kann, solange die Einrichtung noch nicht gelaufen
@@ -146,8 +147,22 @@ export const JOURNAL_HEADER = [
   "ID (App)",
 ] as const;
 
-export const HEADER_ROW = 1;
-export const FIRST_DATA_ROW = 2;
+// Ertragsjournal wie die Anbauplanung: Zeile 1 Hinweis, Zeile 2 Köpfe, Daten ab Zeile 3.
+export const JOURNAL_HINWEIS_ROW = 1;
+export const HEADER_ROW = 2;
+export const FIRST_DATA_ROW = 3;
+
+/**
+ * Ob eine gelesene Journalzeile eine echte Palette ist: Gewicht und Kistenzahl sind
+ * Zahlen grösser 0. Damit hängt das Lesen NICHT an einer festen Startzeile - egal ob die
+ * Köpfe in Zeile 1 oder (nach der Info-Zeile) in Zeile 2 stehen, Hinweis- und Kopfzeile
+ * werden zuverlässig übersprungen, weil dort in Spalte E kein Gewicht steht.
+ */
+export function istDatenzeile(werte: unknown[]): boolean {
+  const gewicht = Number(werte[COLUMNS.gewichtBrutto - 1]);
+  const kisten = Number(werte[COLUMNS.anzahlKisten - 1]);
+  return Number.isFinite(gewicht) && gewicht > 0 && Number.isFinite(kisten) && kisten > 0;
+}
 
 // Anbauplanung: Zeile 1 Hinweis, Zeile 2 Überschriften, Daten ab Zeile 3.
 export const PLAN_HINWEIS_ROW = 1;

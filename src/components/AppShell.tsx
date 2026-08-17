@@ -96,10 +96,11 @@ export function AppShell() {
             🌐 {t(lang, "language")}
           </button>
 
-          {/* Muss auch hier stehen: Vor der ersten Anlieferung ist die Übersicht nicht
-              erreichbar, und ohne eingerichtete Anbauplanung kommt man gar nicht so weit -
-              der Knopf wäre sonst hinter der Hürde versteckt, die er beseitigt. */}
-          <EinrichtenKnopf lang={lang} onFertig={ref.reload} />
+          {/* Nur sichtbar, wenn die Anbauplanung fehlt - also genau in der Klemme, aus der
+              der Knopf heraushilft. Läuft alles, sieht der Erntehelfer einen aufgeräumten
+              Bildschirm ohne Technik-Knopf, den er nicht braucht. In den Einstellungen
+              bleibt der Knopf für den Betriebsleiter immer erreichbar. */}
+          {!ref.planungGelesen && <EinrichtenKnopf lang={lang} onFertig={ref.reload} />}
         </SessionConfigForm>
       ) : view === "wiegen" ? (
         <>

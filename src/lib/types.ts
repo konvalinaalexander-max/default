@@ -58,6 +58,11 @@ export interface ReferenceData {
    * einschränken - sonst stünde jemand ohne Netz vor leeren Listen und käme nicht weiter.
    */
   planungGelesen: boolean;
+  /**
+   * Ob in der Anbauplanung Ertragsformeln fehlen. Die Lade-Route ergänzt sie dann selbst;
+   * der Client wertet dieses Feld nicht aus.
+   */
+  formelnFehlen?: boolean;
 }
 
 /** Fortgeschriebene Summen einer Sorte über alle Saisons. */

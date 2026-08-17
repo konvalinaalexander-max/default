@@ -196,6 +196,13 @@ const TEXTS = {
     pl: "Już było dobrze",
     pt: "Já estava bem",
   },
+  setupExplain: {
+    de: "Zum Jahreswechsel nicht nötig — die App richtet sich beim Öffnen selbst ein. Nur zum Reparieren. Ändert keine Daten, kann gefahrlos gedrückt werden.",
+    en: "Not needed at the new year — the app sets itself up on open. For repairs only. Changes no data, safe to press.",
+    hu: "Évfordulókor nem szükséges — az app induláskor magától beáll. Csak javításra. Nem módosít adatot, nyugodtan megnyomható.",
+    pl: "Niepotrzebne przy zmianie roku — aplikacja konfiguruje się sama. Tylko do naprawy. Nie zmienia danych, można bezpiecznie użyć.",
+    pt: "Não é preciso na virada do ano — a app configura-se sozinha. Só para reparar. Não altera dados, seguro de usar.",
+  },
   // Erklärt leere Schlag- und Sortenlisten. Ohne diesen Hinweis sähe es aus, als wäre
   // die App kaputt, obwohl nur die Einrichtung noch aussteht.
   planMissing: {
