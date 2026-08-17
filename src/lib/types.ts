@@ -8,7 +8,7 @@ export interface PaletteEntry {
   sorte: string;
   gewichtBrutto: number; // Rohgewicht ab Waage, in kg
   anzahlKisten: number;
-  gebindeart?: string; // nur gesetzt, wenn abweichend vom Standard "G2"
+  gebindeart: string; // wird immer geschrieben, im Normalfall der Standardwert
   bemerkung?: string;
   sheetRow: number | null; // Zeilennummer im Sheet, sobald bekannt (nach erstem erfolgreichen Sync)
   syncStatus: "pending" | "syncing" | "synced" | "error";
@@ -22,6 +22,8 @@ export interface SessionConfig {
   person: string;
   feld: string;
   sorte: string;
+  /** Startet in jeder Anlieferung wieder beim Standardwert. */
+  gebindeart: string;
 }
 
 export type PaletteDraft = Pick<PaletteEntry, "anzahlKisten" | "gewichtBrutto">;
@@ -31,6 +33,7 @@ export interface ReferenceData {
   personen: string[];
   felder: string[];
   sorten: string[];
+  gebindearten: string[];
   // Erwarteter kg/Kiste-Bereich je Sorte, aus den bisherigen Sheet-Zeilen gelernt.
   sortenStats: Record<string, SorteStats>;
 }

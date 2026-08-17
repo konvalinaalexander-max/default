@@ -93,6 +93,57 @@ npm run dev
   korrigierbar oder löschbar; Einstellungen (Datum/Person/Feld/Sorte) lassen sich
   nachträglich ändern — wahlweise nur für neue Paletten oder rückwirkend für alle
   bereits erfassten dieser Anlieferung.
+- **Sprache**: Deutsch, Englisch, Ungarisch, Polnisch, Portugiesisch. Wird beim
+  ersten Start über Flaggen gewählt und bleibt gespeichert.
+- **Gebinde**: startet in jeder Anlieferung beim Standardwert `G2`. Weicht es ab,
+  wird vor jedem Speichern nachgefragt — so bleibt eine einmalige Umstellung nicht
+  unbemerkt für alle folgenden Paletten aktiv.
+- **Lange Pause**: liegt die letzte Eingabe über eine Stunde zurück, fragt die App
+  beim nächsten Öffnen, ob die Anlieferung noch läuft oder eine neue beginnt.
+
+## Wie die Daten im Sheet geschützt sind
+
+Die App soll das Erntejournal unter keinen Umständen beschädigen. Dafür sorgen vier
+Ebenen, von "Fehler verhindern" bis "Fehler rückgängig machen":
+
+**1. Die App fügt nur an.** Im Normalbetrieb schreibt sie ausschliesslich neue Zeilen
+ans Ende (über die `append`-Funktion der Sheets-API). Bestehende Zeilen werden nur
+angefasst, wenn jemand in der Übersicht ausdrücklich korrigiert oder löscht. Die
+Kopfzeile ist grundsätzlich ausgeschlossen.
+
+**2. Zeilenprüfung vor jeder Änderung.** Die App merkt sich, in welcher Zeile eine
+Palette steht. Wird das Sheet zwischenzeitlich von Hand sortiert oder wird oben eine
+Zeile eingefügt, zeigen diese Nummern plötzlich auf fremde Daten. Deshalb liest die
+App die Zeile vor jedem Ändern oder Löschen erneut und vergleicht Person und Feld mit
+dem erwarteten Inhalt. Bei Abweichung bricht sie ab und meldet den Grund, statt eine
+unbeteiligte Zeile zu überschreiben.
+
+**3. Wertprüfung auf dem Server.** Selbst wenn die App im Browser einen Fehler hätte,
+weist der Server unsinnige Werte ab: fehlendes Datum, leere Textfelder, Gewicht
+ausserhalb 0–5000 kg, Kistenzahl ausserhalb 1–500.
+
+**4. Versionsverlauf von Google als Sicherheitsnetz.** Google Sheets speichert
+automatisch jede Änderung und du kannst jeden früheren Stand wiederherstellen — das
+ist eine vollständige, laufende Sicherung, die nichts kostet und nichts einzurichten
+braucht. Ein zusätzliches eigenes Backup wäre dazu nur eine schlechtere Kopie.
+
+### Im Notfall: früheren Stand wiederherstellen
+
+1. Sheet öffnen → **Datei → Versionsverlauf → Versionsverlauf anzeigen**
+2. Rechts den Zeitpunkt vor dem Problem auswählen (die Änderungen sind farblich markiert)
+3. Oben auf **Diese Version wiederherstellen**
+
+Der Versionsverlauf zeigt auch, *wer* was geändert hat. Schreibvorgänge der App
+erscheinen unter der E-Mail-Adresse des Service Accounts — dadurch lässt sich immer
+unterscheiden, ob eine Änderung von der App oder von einer Person kam.
+
+### Empfehlung fürs Sheet
+
+Wenn auf den Spalten Person, Feld oder Sorte eine Datenüberprüfung mit fester
+Auswahlliste liegt, markiert Google jede in der App neu angelegte Bezeichnung rot als
+"ungültig". Die Auswahl liefert inzwischen die App selbst, daher ist die Prüfung dort
+verzichtbar: Spalte markieren → **Daten → Datenüberprüfung** → Regel entfernen.
+Wer sie behalten will, stellt sie von "Eingabe ablehnen" auf "Warnung anzeigen" um.
 
 ## Entwicklung
 

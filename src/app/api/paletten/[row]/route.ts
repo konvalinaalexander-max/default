@@ -1,58 +1,56 @@
 import { NextResponse } from "next/server";
 import { deletePaletteRow, updatePalette } from "@/lib/googleSheets";
 import type { PaletteEntry } from "@/lib/types";
+import { pruefePalette, pruefeZeilennummer } from "@/lib/validation";
 
-export async function PATCH(
-  request: Request,
-  ctx: RouteContext<"/api/paletten/[row]">
-) {
+function fehlerAntwort(err: unknown) {
+  console.error("api/paletten/[row] failed", err);
+  return NextResponse.json(
+    { error: err instanceof Error ? err.message : "Unbekannter Fehler" },
+    { status: 500 }
+  );
+}
+
+export async function PATCH(request: Request, ctx: RouteContext<"/api/paletten/[row]">) {
   try {
     const { row } = await ctx.params;
-    const sheetRow = Number(row);
-    if (!Number.isInteger(sheetRow) || sheetRow < 2) {
-      return NextResponse.json({ error: "Ungültige Zeilennummer" }, { status: 400 });
+    const zeilePruefung = pruefeZeilennummer(row);
+    if (!zeilePruefung.ok) {
+      return NextResponse.json({ error: zeilePruefung.fehler }, { status: 400 });
     }
 
-    const body = (await request.json()) as Partial<PaletteEntry>;
-    if (
-      !body.datum ||
-      !body.person ||
-      !body.feld ||
-      !body.sorte ||
-      typeof body.gewichtBrutto !== "number" ||
-      typeof body.anzahlKisten !== "number"
-    ) {
-      return NextResponse.json({ error: "Unvollständige Palette" }, { status: 400 });
+    const body = await request.json();
+    const pruefung = pruefePalette(body);
+    if (!pruefung.ok) {
+      return NextResponse.json({ error: pruefung.fehler }, { status: 400 });
     }
 
-    await updatePalette(sheetRow, body as PaletteEntry);
+    await updatePalette(Number(row), body as PaletteEntry);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("PATCH /api/paletten/[row] failed", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Unbekannter Fehler" },
-      { status: 500 }
-    );
+    return fehlerAntwort(err);
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  ctx: RouteContext<"/api/paletten/[row]">
-) {
+export async function DELETE(request: Request, ctx: RouteContext<"/api/paletten/[row]">) {
   try {
     const { row } = await ctx.params;
-    const sheetRow = Number(row);
-    if (!Number.isInteger(sheetRow) || sheetRow < 2) {
-      return NextResponse.json({ error: "Ungültige Zeilennummer" }, { status: 400 });
+    const zeilePruefung = pruefeZeilennummer(row);
+    if (!zeilePruefung.ok) {
+      return NextResponse.json({ error: zeilePruefung.fehler }, { status: 400 });
     }
-    await deletePaletteRow(sheetRow);
+
+    // Auch beim Löschen wird der erwartete Inhalt mitgeschickt: nur wenn die Zeile
+    // wirklich zu dieser Palette gehört, wird sie entfernt.
+    const body = await request.json();
+    const pruefung = pruefePalette(body);
+    if (!pruefung.ok) {
+      return NextResponse.json({ error: pruefung.fehler }, { status: 400 });
+    }
+
+    await deletePaletteRow(Number(row), body as PaletteEntry);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("DELETE /api/paletten/[row] failed", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Unbekannter Fehler" },
-      { status: 500 }
-    );
+    return fehlerAntwort(err);
   }
 }

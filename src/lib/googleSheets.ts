@@ -124,6 +124,10 @@ export async function getReferenceData(): Promise<ReferenceData> {
   const personen = count(rows.map((r) => String(r.values[COLUMNS.person - 1] ?? "")));
   const felder = count(rows.map((r) => String(r.values[COLUMNS.feld - 1] ?? "")));
   const sorten = count(rows.map((r) => String(r.values[COLUMNS.sorte - 1] ?? "")));
+  const gebindearten = count([
+    STANDARD_GEBINDEART,
+    ...rows.map((r) => String(r.values[COLUMNS.gebindeart - 1] ?? "")),
+  ]);
 
   const proSorteWerte = new Map<string, number[]>();
   for (const r of rows) {
@@ -147,7 +151,7 @@ export async function getReferenceData(): Promise<ReferenceData> {
     };
   }
 
-  return { personen, felder, sorten, sortenStats };
+  return { personen, felder, sorten, gebindearten, sortenStats };
 }
 
 export interface SyncResult {
@@ -189,8 +193,51 @@ export async function appendPalette(entry: PaletteEntry): Promise<SyncResult> {
   return { sheetRow };
 }
 
+/**
+ * Sicherheitsnetz vor jedem Ändern oder Löschen: Die App merkt sich Zeilennummern.
+ * Wird das Sheet zwischenzeitlich von Hand sortiert, oder wird oben eine Zeile
+ * eingefügt, zeigen diese Nummern plötzlich auf fremde Daten - ein Schreibvorgang
+ * würde dann eine unbeteiligte Zeile überschreiben.
+ * Deshalb wird zuerst gelesen und geprüft, ob die Zeile noch die erwartete ist.
+ */
+async function pruefeZeileGehoertZuEintrag(
+  sheetRow: number,
+  entry: PaletteEntry
+): Promise<void> {
+  const sheets = getClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: getSheetId(),
+    range: `${SHEET_NAME}!${colLetter(COLUMNS.datum)}${sheetRow}:${colLetter(COLUMNS.anzahlKisten)}${sheetRow}`,
+    valueRenderOption: "UNFORMATTED_VALUE",
+  });
+
+  const werte = res.data.values?.[0] ?? [];
+  if (werte.length === 0) {
+    throw new Error(
+      `Zeile ${sheetRow} ist leer. Die Zeile wurde vermutlich im Sheet verschoben oder gelöscht - es wurde nichts geändert.`
+    );
+  }
+
+  // Verglichen wird nur, was die App selbst geschrieben hat und was sich nicht
+  // beim Korrigieren ändert: Person und Feld. Zusammen mit einer nicht leeren Zeile
+  // reicht das, um ein Vertauschen zuverlässig zu erkennen.
+  const personImSheet = String(werte[COLUMNS.person - 1] ?? "").trim();
+  const feldImSheet = String(werte[COLUMNS.feld - 1] ?? "").trim();
+
+  const passt =
+    personImSheet === entry.person.trim() && feldImSheet === entry.feld.trim();
+
+  if (!passt) {
+    throw new Error(
+      `Zeile ${sheetRow} enthält andere Daten als erwartet (im Sheet: "${personImSheet} / ${feldImSheet}"). ` +
+        `Wurde das Sheet zwischenzeitlich sortiert oder bearbeitet? Es wurde nichts geändert.`
+    );
+  }
+}
+
 /** Überschreibt eine bestehende Palette-Zeile komplett (z.B. bei Korrektur). */
 export async function updatePalette(sheetRow: number, entry: PaletteEntry): Promise<void> {
+  await pruefeZeileGehoertZuEintrag(sheetRow, entry);
   const sheets = getClient();
   await sheets.spreadsheets.values.update({
     spreadsheetId: getSheetId(),
@@ -220,7 +267,8 @@ async function getSheetGid(): Promise<number> {
  * Die Zeilennummern darunter verschieben sich dadurch um eins nach oben; der Aufrufer
  * muss die gemerkten Zeilennummern entsprechend anpassen.
  */
-export async function deletePaletteRow(sheetRow: number): Promise<void> {
+export async function deletePaletteRow(sheetRow: number, entry: PaletteEntry): Promise<void> {
+  await pruefeZeileGehoertZuEintrag(sheetRow, entry);
   const sheets = getClient();
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: getSheetId(),

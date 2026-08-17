@@ -408,6 +408,80 @@ const TEXTS = {
     pt: "Não, só as novas",
   },
 
+  // --- Gebindeart ---
+  packaging: {
+    de: "Gebinde",
+    en: "Packaging",
+    hu: "Csomagolás",
+    pl: "Opakowanie",
+    pt: "Embalagem",
+  },
+  changePackaging: {
+    de: "Gebinde ändern",
+    en: "Change packaging",
+    hu: "Csomagolás módosítása",
+    pl: "Zmień opakowanie",
+    pt: "Mudar embalagem",
+  },
+  packagingConfirmTitle: {
+    de: "Anderes Gebinde?",
+    en: "Different packaging?",
+    hu: "Más csomagolás?",
+    pl: "Inne opakowanie?",
+    pt: "Embalagem diferente?",
+  },
+  packagingConfirmMsg: {
+    de: "Diese Palette wird mit {gebinde} gespeichert, nicht mit {standard}. Ist das richtig?",
+    en: "This pallet will be saved with {gebinde}, not {standard}. Is that correct?",
+    hu: "Ez a paletta {gebinde} csomagolással lesz mentve, nem {standard}. Így helyes?",
+    pl: "Ta paleta zostanie zapisana z {gebinde}, nie {standard}. Czy to poprawne?",
+    pt: "Esta palete será guardada com {gebinde}, não {standard}. Está correto?",
+  },
+  packagingConfirmYes: {
+    de: "Ja, {gebinde}",
+    en: "Yes, {gebinde}",
+    hu: "Igen, {gebinde}",
+    pl: "Tak, {gebinde}",
+    pt: "Sim, {gebinde}",
+  },
+  packagingBackToStandard: {
+    de: "Zurück auf {standard}",
+    en: "Back to {standard}",
+    hu: "Vissza: {standard}",
+    pl: "Powrót do {standard}",
+    pt: "Voltar a {standard}",
+  },
+
+  // --- Anlieferung noch aktuell? ---
+  stillRunningTitle: {
+    de: "Läuft die Anlieferung noch?",
+    en: "Is this delivery still running?",
+    hu: "Folyamatban van még a beszállítás?",
+    pl: "Czy ta dostawa jeszcze trwa?",
+    pt: "Esta entrega ainda está a decorrer?",
+  },
+  stillRunningMsg: {
+    de: "Letzte Eingabe: {zeit}. Weiter mit dieser Anlieferung?",
+    en: "Last entry: {zeit}. Continue with this delivery?",
+    hu: "Utolsó bejegyzés: {zeit}. Folytatod ezt a beszállítást?",
+    pl: "Ostatni wpis: {zeit}. Kontynuować tę dostawę?",
+    pt: "Último registo: {zeit}. Continuar esta entrega?",
+  },
+  continueDelivery: {
+    de: "Ja, weiter",
+    en: "Yes, continue",
+    hu: "Igen, folytatom",
+    pl: "Tak, kontynuuj",
+    pt: "Sim, continuar",
+  },
+  newDeliveryShort: {
+    de: "Neue Anlieferung",
+    en: "New delivery",
+    hu: "Új beszállítás",
+    pl: "Nowa dostawa",
+    pt: "Nova entrega",
+  },
+
   // --- Datumswechsel ---
   dateChangedTitle: {
     de: "Datum prüfen",
@@ -462,6 +536,14 @@ export function formatNumber(lang: Lang, value: number, digits = 2): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(value);
+}
+
+/** Uhrzeit in der gewählten Sprache, z.B. 14:32. */
+export function formatTime(lang: Lang, timestamp: number): string {
+  return new Intl.DateTimeFormat(localeOf(lang), {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
 }
 
 /** Datum lesbar in der gewählten Sprache, z.B. 17.08.2026 bzw. 17/08/2026. */

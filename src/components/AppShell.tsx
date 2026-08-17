@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatDate, t } from "@/lib/i18n";
+import { formatDate, formatTime, t } from "@/lib/i18n";
 import { useLanguage } from "@/lib/useLanguage";
 import { useReferenceData } from "@/lib/useReferenceData";
 import { useSession } from "@/lib/useSession";
@@ -93,7 +93,9 @@ export function AppShell() {
             lang={lang}
             sorte={session.config.sorte}
             feld={session.config.feld}
+            gebindeart={session.config.gebindeart}
             sorten={ref.sorten}
+            gebindearten={ref.gebindearten}
             sortenStats={ref.sortenStats}
             offeneAnzahl={session.offeneAnzahl}
             onSave={session.addEntry}
@@ -101,6 +103,10 @@ export function AppShell() {
               ref.addLocalOption("sorten", sorte);
               // Nur für neue Paletten - die bereits erfassten behalten ihre Sorte.
               session.applyConfigChange({ sorte }, false);
+            }}
+            onChangeGebindeart={(gebindeart) => {
+              ref.addLocalOption("gebindearten", gebindeart);
+              session.applyConfigChange({ gebindeart }, false);
             }}
           />
         </>
@@ -123,8 +129,27 @@ export function AppShell() {
         />
       )}
 
+      {/* Lange Pause: wahrscheinlich ein neuer Lastwagen. Es wird gefragt, nie
+          automatisch zurückgesetzt - erfasste Paletten dürfen nicht ungefragt
+          aus der Übersicht verschwinden. */}
+      {session.pauseZuLang && (
+        <ConfirmDialog
+          title={t(lang, "stillRunningTitle")}
+          message={t(lang, "stillRunningMsg", {
+            zeit: formatTime(lang, session.letzteAktivitaet),
+          })}
+          confirmLabel={t(lang, "continueDelivery")}
+          cancelLabel={t(lang, "newDeliveryShort")}
+          onConfirm={session.bestaetigeWeiterlauf}
+          onCancel={() => {
+            session.startNewSession();
+            setView("wiegen");
+          }}
+        />
+      )}
+
       {/* Handy lag über Nacht offen: das Datum der Anlieferung stimmt dann nicht mehr. */}
-      {session.datumIstVeraltet && !datumHinweisWeg && (
+      {session.datumIstVeraltet && !datumHinweisWeg && !session.pauseZuLang && (
         <ConfirmDialog
           title={t(lang, "dateChangedTitle")}
           message={t(lang, "dateChangedMsg", {

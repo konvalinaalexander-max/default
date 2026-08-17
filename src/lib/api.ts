@@ -28,8 +28,13 @@ export function updatePaletteRow(sheetRow: number, entry: PaletteEntry): Promise
   }).then((res) => asJson(res)).then(() => undefined);
 }
 
-export function deletePaletteRow(sheetRow: number): Promise<void> {
-  return fetch(`/api/paletten/${sheetRow}`, { method: "DELETE" })
+/** Der erwartete Inhalt wird mitgeschickt, damit der Server die Zeile vor dem Löschen prüft. */
+export function deletePaletteRow(sheetRow: number, entry: PaletteEntry): Promise<void> {
+  return fetch(`/api/paletten/${sheetRow}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(entry),
+  })
     .then((res) => asJson(res))
     .then(() => undefined);
 }

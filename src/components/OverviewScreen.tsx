@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { gewichtProKiste } from "@/lib/constants";
+import { STANDARD_GEBINDEART, gewichtProKiste } from "@/lib/constants";
 import { formatDate, formatNumber, t, type Lang } from "@/lib/i18n";
 import type { PaletteEntry, SessionConfig } from "@/lib/types";
 import { ComboField } from "./ComboField";
@@ -251,7 +251,18 @@ function PaletteCard({
         {t(lang, "perCrate")}
       </div>
       <div className="text-sm text-neutral-500">
-        {entry.sorte} · {entry.feld}
+        {entry.sorte} · {entry.feld} ·{" "}
+        {/* Ein vom Standard abweichendes Gebinde wird hervorgehoben, damit es in der
+            Liste sofort auffällt, falls es versehentlich gesetzt war. */}
+        <span
+          className={
+            entry.gebindeart !== STANDARD_GEBINDEART
+              ? "rounded bg-orange-100 px-1.5 py-0.5 font-semibold text-orange-800"
+              : undefined
+          }
+        >
+          {entry.gebindeart}
+        </span>
       </div>
 
       {entry.syncStatus === "error" && (

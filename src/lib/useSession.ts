@@ -11,34 +11,56 @@ const STORAGE_KEY = "kuerbis-erfassung-session-v1";
 const DOPPELKLICK_FENSTER_MS = 2000;
 /** Abstand, in dem fehlgeschlagene Zeilen erneut gesendet werden. */
 const WIEDERHOLUNG_INTERVALL_MS = 20_000;
+/**
+ * Nach dieser Pause wird gefragt, ob die Anlieferung noch läuft. Absichtlich eine
+ * Frage und kein automatisches Zurücksetzen: erfasste Daten dürfen nie ungefragt
+ * verschwinden. Eine kurze Pause zwischen zwei Paletten dauert Minuten, ein neuer
+ * Lastwagen kommt Stunden später - eine Stunde trennt die beiden Fälle gut.
+ */
+const INAKTIV_SCHWELLE_MS = 60 * 60 * 1000;
 
 interface StoredState {
   config: SessionConfig;
   entries: PaletteEntry[];
+  /** Zeitpunkt der letzten Eingabe - Grundlage für die Inaktivitätsfrage. */
+  letzteAktivitaet: number;
 }
 
 function defaultConfig(): SessionConfig {
-  return { datum: todayIso(), person: "", feld: "", sorte: "" };
+  return {
+    datum: todayIso(),
+    person: "",
+    feld: "",
+    sorte: "",
+    gebindeart: STANDARD_GEBINDEART,
+  };
 }
 
 function loadStored(): StoredState {
-  if (typeof window === "undefined") return { config: defaultConfig(), entries: [] };
+  const leer = { config: defaultConfig(), entries: [], letzteAktivitaet: Date.now() };
+  if (typeof window === "undefined") return leer;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { config: defaultConfig(), entries: [] };
-    const parsed = JSON.parse(raw) as StoredState;
+    if (!raw) return leer;
+    const parsed = JSON.parse(raw) as Partial<StoredState>;
+    const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
     return {
       config: { ...defaultConfig(), ...parsed.config },
       // Beim Laden gilt alles als offen, was beim Schliessen noch unterwegs war -
       // sonst bliebe eine Zeile für immer im Zustand "wird gespeichert" hängen.
-      entries: Array.isArray(parsed.entries)
-        ? parsed.entries.map((e) =>
-            e.syncStatus === "syncing" ? { ...e, syncStatus: "error" as const } : e
-          )
-        : [],
+      entries: entries.map((e) => ({
+        ...e,
+        // Ältere gespeicherte Zeilen kennen das Feld noch nicht.
+        gebindeart: e.gebindeart || STANDARD_GEBINDEART,
+        syncStatus: e.syncStatus === "syncing" ? ("error" as const) : e.syncStatus,
+      })),
+      letzteAktivitaet:
+        typeof parsed.letzteAktivitaet === "number"
+          ? parsed.letzteAktivitaet
+          : entries.reduce((max, e) => Math.max(max, e.createdAt ?? 0), 0) || Date.now(),
     };
   } catch {
-    return { config: defaultConfig(), entries: [] };
+    return leer;
   }
 }
 
@@ -47,6 +69,10 @@ export function useSession() {
   // synchrones Lesen aus localStorage beim ersten Render sicher (kein SSR-Hydration-Mismatch).
   const [config, setConfigState] = useState<SessionConfig>(() => loadStored().config);
   const [entries, setEntries] = useState<PaletteEntry[]>(() => loadStored().entries);
+  const [letzteAktivitaet, setLetzteAktivitaet] = useState<number>(
+    () => loadStored().letzteAktivitaet
+  );
+  const [pauseZuLang, setPauseZuLang] = useState(false);
 
   // Für Hintergrundaufgaben (Wiederholung) immer der aktuelle Stand, ohne Neustart des Timers.
   const entriesRef = useRef(entries);
@@ -57,8 +83,35 @@ export function useSession() {
   }, [entries]);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ config, entries }));
-  }, [config, entries]);
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ config, entries, letzteAktivitaet })
+    );
+  }, [config, entries, letzteAktivitaet]);
+
+  /**
+   * Prüft, ob seit der letzten Eingabe zu viel Zeit vergangen ist. Läuft bewusst
+   * ausserhalb des Renderns: beim Zurückkehren aus dem Hintergrund (anderes Programm,
+   * Bildschirm gesperrt) und zusätzlich in festem Abstand, falls die App offen liegt.
+   */
+  useEffect(() => {
+    const pruefe = () =>
+      setPauseZuLang(
+        entries.length > 0 && Date.now() - letzteAktivitaet > INAKTIV_SCHWELLE_MS
+      );
+    const beiRueckkehr = () => {
+      if (document.visibilityState === "visible") pruefe();
+    };
+
+    const sofort = window.setTimeout(pruefe, 0);
+    const timer = window.setInterval(pruefe, 60_000);
+    document.addEventListener("visibilitychange", beiRueckkehr);
+    return () => {
+      window.clearTimeout(sofort);
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", beiRueckkehr);
+    };
+  }, [entries.length, letzteAktivitaet]);
 
   const updateEntryLocal = useCallback((id: string, changes: Partial<PaletteEntry>) => {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...changes } : e)));
@@ -86,7 +139,7 @@ export function useSession() {
   );
 
   const addEntry = useCallback(
-    (draft: PaletteDraft) => {
+    (draft: PaletteDraft & { gebindeart?: string }) => {
       // Schutz gegen versehentliches doppeltes Tippen auf "Weiter" - mit Handschuhen
       // oder bei Verzögerung im Netz passiert das sonst leicht.
       const signatur = `${config.sorte}|${config.feld}|${draft.gewichtBrutto}|${draft.anzahlKisten}`;
@@ -105,12 +158,13 @@ export function useSession() {
         sorte: config.sorte,
         gewichtBrutto: draft.gewichtBrutto,
         anzahlKisten: draft.anzahlKisten,
-        gebindeart: STANDARD_GEBINDEART,
+        gebindeart: draft.gebindeart || config.gebindeart || STANDARD_GEBINDEART,
         sheetRow: null,
         syncStatus: "syncing",
         createdAt: jetzt,
       };
       setEntries((prev) => [...prev, entry]);
+      setLetzteAktivitaet(jetzt);
       sende(entry);
       return entry.id;
     },
@@ -176,7 +230,9 @@ export function useSession() {
       );
 
       const geloeschteZeile = current.sheetRow;
-      const task = geloeschteZeile ? api.deletePaletteRow(geloeschteZeile) : Promise.resolve();
+      const task = geloeschteZeile
+        ? api.deletePaletteRow(geloeschteZeile, current)
+        : Promise.resolve();
 
       task
         .then(() =>
@@ -249,11 +305,24 @@ export function useSession() {
   const startNewSession = useCallback(() => {
     setEntries([]);
     letzteEingabe.current = null;
+    setLetzteAktivitaet(Date.now());
+    setPauseZuLang(false);
+    // Person bleibt stehen (meist dieselbe), Gebindeart startet wieder beim Standard.
     setConfigState((prev) => ({ ...defaultConfig(), datum: todayIso(), person: prev.person }));
   }, []);
 
   const setDatum = useCallback((datum: string) => {
     setConfigState((prev) => ({ ...prev, datum }));
+  }, []);
+
+  /**
+   * Bestätigt, dass die laufende Anlieferung trotz Pause weitergeht. Die Zeitmarke wird
+   * neu gesetzt, dadurch verschwindet die Frage - und stellt sich nach einer weiteren
+   * langen Pause von selbst erneut.
+   */
+  const bestaetigeWeiterlauf = useCallback(() => {
+    setLetzteAktivitaet(Date.now());
+    setPauseZuLang(false);
   }, []);
 
   return {
@@ -264,6 +333,10 @@ export function useSession() {
     /** true, wenn die Anlieferung von einem früheren Tag stammt (Handy lag über Nacht offen). */
     datumIstVeraltet: entries.length > 0 && config.datum !== todayIso(),
     heute: todayIso(),
+    /** true, wenn seit der letzten Eingabe so lange nichts passiert ist, dass nachgefragt wird. */
+    pauseZuLang,
+    letzteAktivitaet,
+    bestaetigeWeiterlauf,
     addEntry,
     updateEntry,
     retryEntry,
