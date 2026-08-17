@@ -114,6 +114,11 @@ export function OverviewScreen({
           >
             🌐 {t(lang, "language")}
           </button>
+
+          {/* Verrät auf den ersten Blick, welcher Stand auf diesem Gerät läuft. */}
+          <p className="text-center text-xs text-neutral-400">
+            Version {process.env.NEXT_PUBLIC_BUILD_ID}
+          </p>
         </SessionConfigForm>
 
         {pendingConfig && (
