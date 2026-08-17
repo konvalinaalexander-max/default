@@ -55,15 +55,25 @@ export function OverviewScreen({
 
   const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
 
+  /**
+   * Nach dem Speichern der Einstellungen geht es direkt zum Wiegen weiter. Wer die
+   * Sorte umstellt, will als Nächstes wiegen - nicht die Liste der schon erfassten
+   * Paletten ansehen. Über den Zurück-Knopf bleibt die Liste jederzeit erreichbar.
+   */
+  function zurueckAnsWiegen() {
+    setMode("list");
+    onBack();
+  }
+
   function handleConfigSubmit(newConfig: SessionConfig) {
     const changes = diffConfig(config, newConfig);
     if (Object.keys(changes).length === 0) {
-      setMode("list");
+      zurueckAnsWiegen();
       return;
     }
     if (entries.length === 0) {
       onApplyConfigChange(changes, false);
-      setMode("list");
+      zurueckAnsWiegen();
       return;
     }
     setPendingConfig(changes);
@@ -108,12 +118,12 @@ export function OverviewScreen({
             onConfirm={() => {
               onApplyConfigChange(pendingConfig, true);
               setPendingConfig(null);
-              setMode("list");
+              zurueckAnsWiegen();
             }}
             onCancel={() => {
               onApplyConfigChange(pendingConfig, false);
               setPendingConfig(null);
-              setMode("list");
+              zurueckAnsWiegen();
             }}
           />
         )}
