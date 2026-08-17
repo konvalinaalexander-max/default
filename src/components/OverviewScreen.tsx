@@ -32,6 +32,8 @@ interface OverviewScreenProps {
   onBack: () => void;
   onStartNewSession: () => void;
   onOpenLanguage: () => void;
+  /** Nach der Einrichtung die Stammdaten neu laden. */
+  onEinrichtungFertig: () => void;
 }
 
 function diffConfig(a: SessionConfig, b: SessionConfig): Partial<SessionConfig> {
@@ -60,6 +62,7 @@ export function OverviewScreen({
   onBack,
   onStartNewSession,
   onOpenLanguage,
+  onEinrichtungFertig,
 }: OverviewScreenProps) {
   const [pendingConfig, setPendingConfig] = useState<Partial<SessionConfig> | null>(null);
   const [confirmNewSession, setConfirmNewSession] = useState(false);
@@ -120,7 +123,7 @@ export function OverviewScreen({
             🌐 {t(lang, "language")}
           </button>
 
-          <EinrichtenKnopf lang={lang} />
+          <EinrichtenKnopf lang={lang} onFertig={onEinrichtungFertig} />
 
           {/* Verrät auf den ersten Blick, welcher Stand auf diesem Gerät läuft. */}
           <p className="text-center text-xs text-neutral-400">

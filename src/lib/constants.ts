@@ -70,6 +70,13 @@ export const PLAN_SHEET = "Anbauplanung Ertrag";
 export const REFERENZ_SHEET = "Referenzwerte";
 
 /**
+ * Namen, unter denen das Journal stehen kann, solange die Einrichtung noch nicht gelaufen
+ * ist. Ohne diese Liste würde die App vor der Einrichtung überhaupt nichts lesen können -
+ * und der Knopf, der den Tab umbenennt, wäre selbst nicht erreichbar.
+ */
+export const ALTE_JOURNAL_TITEL = ["Tabellenblatt1", "Sheet1", "Tabelle1"];
+
+/**
  * Blattnamen mit Leerzeichen müssen in Hochkommas stehen - sowohl in Formeln als auch in
  * Bereichsangaben an die Schnittstelle. "Anbauplanung Ertrag" ist so ein Fall.
  */

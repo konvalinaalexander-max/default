@@ -1,6 +1,7 @@
 import "server-only";
 import { google, sheets_v4 } from "googleapis";
 import {
+  ALTE_JOURNAL_TITEL,
   COLUMNS,
   FIRST_DATA_ROW,
   blattRef,
@@ -65,8 +66,74 @@ export function colLetter(col: number): string {
 
 const LETZTE_SPALTE = colLetter(COLUMNS.id);
 
-function rowRange(row: number): string {
-  return `${blattRef(JOURNAL_SHEET)}!A${row}:${LETZTE_SPALTE}${row}`;
+/** Einmal aufgelöster Tab-Name des Journals. */
+let journalTabCache: string | null = null;
+
+export function vergesseJournalTab(): void {
+  journalTabCache = null;
+}
+
+/**
+ * Der tatsächliche Tab-Name des Journals.
+ *
+ * Vor der Einrichtung heisst er noch "Tabellenblatt1". Würde die App stur
+ * "Ertragsjournal" lesen, käme von jedem Zugriff nur ein Fehler zurück - und genau der
+ * Knopf, der den Tab umbenennt, wäre dann nicht erreichbar.
+ */
+async function journalTab(): Promise<string> {
+  if (journalTabCache) return journalTabCache;
+
+  const sheets = getClient();
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: getSheetId(),
+    fields: "sheets.properties.title",
+  });
+  const titel = (meta.data.sheets ?? []).map((s) => s.properties?.title ?? "");
+
+  const gefunden =
+    titel.find((t) => t === JOURNAL_SHEET) ??
+    titel.find((t) => ALTE_JOURNAL_TITEL.includes(t)) ??
+    (titel.length === 1 ? titel[0] : undefined);
+
+  if (!gefunden) {
+    throw new Error(
+      `Tabellenblatt "${JOURNAL_SHEET}" nicht gefunden. Vorhanden sind: ` +
+        `${titel.map((t) => `"${t}"`).join(", ") || "keine"}. ` +
+        `Benenne das Journal so um, oder starte in den Einstellungen "Sheet einrichten".`
+    );
+  }
+  journalTabCache = gefunden;
+  return gefunden;
+}
+
+/** Erkennt, dass ein Bereich auf ein Blatt zeigt, das es nicht (mehr) gibt. */
+function istUnbekannterBereich(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return /Unable to parse range|nicht gefunden/i.test(text);
+}
+
+/**
+ * Führt einen Zugriff mit dem aufgelösten Tab-Namen aus und heilt sich selbst: Wurde der
+ * Tab zwischenzeitlich umbenannt - etwa weil die Einrichtung auf einer anderen
+ * Server-Instanz lief - wird der gemerkte Name verworfen und einmal neu aufgelöst.
+ */
+async function mitJournalTab<T>(arbeit: (tab: string) => Promise<T>): Promise<T> {
+  try {
+    return await arbeit(await journalTab());
+  } catch (err) {
+    if (!istUnbekannterBereich(err)) throw err;
+    vergesseJournalTab();
+    return arbeit(await journalTab());
+  }
+}
+
+/** Wie journalTab(), nur ohne Selbstheilung - für Schreibzugriffe, die den Namen brauchen. */
+async function journalTabOderNeu(): Promise<string> {
+  return mitJournalTab(async (tab) => tab);
+}
+
+function rowRange(tab: string, row: number): string {
+  return `${blattRef(tab)}!A${row}:${LETZTE_SPALTE}${row}`;
 }
 
 function rowValues(entry: {
@@ -106,11 +173,13 @@ function formelWerte(row: number, gebindeart?: string | null): string[] {
 /** Liest alle bisherigen Datenzeilen des Journals (roh, ohne Formeln aufzulösen). */
 async function readAllDataRows(): Promise<{ row: number; values: unknown[] }[]> {
   const sheets = getClient();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: getSheetId(),
-    range: `${blattRef(JOURNAL_SHEET)}!A${FIRST_DATA_ROW}:${LETZTE_SPALTE}100000`,
-    valueRenderOption: "UNFORMATTED_VALUE",
-  });
+  const res = await mitJournalTab((tab) =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId: getSheetId(),
+      range: `${blattRef(tab)}!A${FIRST_DATA_ROW}:${LETZTE_SPALTE}100000`,
+      valueRenderOption: "UNFORMATTED_VALUE",
+    })
+  );
   const rows = res.data.values ?? [];
   return rows
     .map((values, i) => ({ row: FIRST_DATA_ROW + i, values }))
@@ -367,11 +436,13 @@ function parseRowFromRange(range: string | null | undefined): number {
 async function findeZeileZuId(id: string): Promise<number | null> {
   const sheets = getClient();
   const spalte = colLetter(COLUMNS.id);
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: getSheetId(),
-    range: `${blattRef(JOURNAL_SHEET)}!${spalte}${FIRST_DATA_ROW}:${spalte}100000`,
-    valueRenderOption: "UNFORMATTED_VALUE",
-  });
+  const res = await mitJournalTab((tab) =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId: getSheetId(),
+      range: `${blattRef(tab)}!${spalte}${FIRST_DATA_ROW}:${spalte}100000`,
+      valueRenderOption: "UNFORMATTED_VALUE",
+    })
+  );
   const werte = res.data.values ?? [];
   for (let i = 0; i < werte.length; i++) {
     if (String(werte[i]?.[0] ?? "").trim() === id) return FIRST_DATA_ROW + i;
@@ -407,9 +478,10 @@ export async function appendPalette(
   // Formeln in I und J bis Zeile 1000 hinuntergezogen, dort steht also etwas. Würde der
   // Bereich I mit einschliessen, hielte append die Tabelle für 1000 Zeilen lang und
   // schriebe die nächste Palette in Zeile 1001 - mit hunderten leeren Zeilen davor.
+  const tab = await journalTabOderNeu();
   const res = await sheets.spreadsheets.values.append({
     spreadsheetId: getSheetId(),
-    range: `${blattRef(JOURNAL_SHEET)}!A:${colLetter(COLUMNS.bemerkung)}`,
+    range: `${blattRef(tab)}!A:${colLetter(COLUMNS.bemerkung)}`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [rowValues(entry)] },
@@ -419,7 +491,7 @@ export async function appendPalette(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: getSheetId(),
-    range: `${blattRef(JOURNAL_SHEET)}!${colLetter(COLUMNS.nettoProPalette)}${sheetRow}:${LETZTE_SPALTE}${sheetRow}`,
+    range: `${blattRef(tab)}!${colLetter(COLUMNS.nettoProPalette)}${sheetRow}:${LETZTE_SPALTE}${sheetRow}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [[...formelWerte(sheetRow, entry.gebindeart), entry.id]] },
   });
@@ -438,11 +510,13 @@ export async function appendPalette(
  */
 async function findeGueltigeZeile(sheetRow: number, entry: PaletteEntry): Promise<number> {
   const sheets = getClient();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: getSheetId(),
-    range: rowRange(sheetRow),
-    valueRenderOption: "UNFORMATTED_VALUE",
-  });
+  const res = await mitJournalTab((tab) =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId: getSheetId(),
+      range: rowRange(tab, sheetRow),
+      valueRenderOption: "UNFORMATTED_VALUE",
+    })
+  );
 
   const werte = res.data.values?.[0] ?? [];
   const idImSheet = String(werte[COLUMNS.id - 1] ?? "").trim();
@@ -485,7 +559,7 @@ export async function updatePalette(sheetRow: number, entry: PaletteEntry): Prom
   const sheets = getClient();
   await sheets.spreadsheets.values.update({
     spreadsheetId: getSheetId(),
-    range: rowRange(zeile),
+    range: rowRange(await journalTabOderNeu(), zeile),
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [[...rowValues(entry), ...formelWerte(zeile, entry.gebindeart), entry.id]],
@@ -528,7 +602,7 @@ export async function deletePaletteRow(sheetRow: number, entry: PaletteEntry): P
         {
           deleteDimension: {
             range: {
-              sheetId: await getSheetGid(JOURNAL_SHEET),
+              sheetId: await getSheetGid(await journalTabOderNeu()),
               dimension: "ROWS",
               startIndex: zeile - 1, // API zählt ab 0
               endIndex: zeile,
@@ -546,8 +620,9 @@ export async function batchUpdateSessionFields(
 ): Promise<void> {
   if (updates.length === 0) return;
   const sheets = getClient();
+  const tab = await journalTabOderNeu();
   const data: sheets_v4.Schema$ValueRange[] = updates.map((u) => ({
-    range: `${blattRef(JOURNAL_SHEET)}!${colLetter(COLUMNS.datum)}${u.sheetRow}:${colLetter(COLUMNS.sorte)}${u.sheetRow}`,
+    range: `${blattRef(tab)}!${colLetter(COLUMNS.datum)}${u.sheetRow}:${colLetter(COLUMNS.sorte)}${u.sheetRow}`,
     values: [[isoZuSheetDatum(u.datum), u.person, u.schlag, u.sorte]],
   }));
   await sheets.spreadsheets.values.batchUpdate({

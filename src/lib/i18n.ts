@@ -196,6 +196,15 @@ const TEXTS = {
     pl: "Już było dobrze",
     pt: "Já estava bem",
   },
+  // Erklärt leere Schlag- und Sortenlisten. Ohne diesen Hinweis sähe es aus, als wäre
+  // die App kaputt, obwohl nur die Einrichtung noch aussteht.
+  planMissing: {
+    de: "Die Anbauplanung ist noch nicht eingerichtet. Schlag und Sorte sind erst danach wählbar — dazu unten „Sheet einrichten“ drücken.",
+    en: "The crop plan is not set up yet. Field and variety become selectable after that — use “Set up sheet” below.",
+    hu: "A termesztési terv még nincs beállítva. A terület és a fajta utána választható — lent a „Táblázat beállítása”.",
+    pl: "Plan uprawy nie jest jeszcze gotowy. Pole i odmianę wybierzesz potem — użyj „Skonfiguruj arkusz” poniżej.",
+    pt: "O plano de cultivo ainda não está configurado. Campo e variedade ficam disponíveis depois — use “Configurar folha” abaixo.",
+  },
   startWeighing: {
     de: "Weiter zum Wiegen",
     en: "Start weighing",

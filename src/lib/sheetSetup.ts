@@ -2,6 +2,7 @@ import "server-only";
 import { sheets_v4 } from "googleapis";
 import { ANBAUPLANUNG_SEED } from "./anbauplanungSeed";
 import {
+  ALTE_JOURNAL_TITEL,
   COLUMNS,
   FIRST_DATA_ROW,
   HEADER_ROW,
@@ -19,13 +20,10 @@ import {
   netGewichtProPalette,
   blattRef,
 } from "./constants";
-import { colLetter, getClient, getSheetId } from "./googleSheets";
+import { colLetter, getClient, getSheetId, vergesseJournalTab } from "./googleSheets";
 
 export const DOKUMENT_TITEL = "Kürbis Anbauplanung Journal Ertrag";
 const SICHERUNG_TITEL = "Ertragsjournal Sicherung";
-
-/** Tab-Namen, unter denen das Journal vor der Umbenennung stehen kann. */
-const ALTE_JOURNAL_TITEL = ["Tabellenblatt1", "Sheet1", "Tabelle1"];
 
 export const PLAN_HINWEIS =
   "SAISONSTART: Nur die Zeilen ab Zeile 3 löschen und die neue Anbauplanung direkt " +
@@ -256,6 +254,9 @@ export async function richteSheetEin(): Promise<EinrichtungsBericht> {
       spreadsheetId: getSheetId(),
       requestBody: { requests: anfragen },
     });
+    // Der Tab heisst jetzt möglicherweise anders als beim Auflösen - sonst würden die
+    // folgenden Schritte noch den alten Namen verwenden.
+    vergesseJournalTab();
   }
 
   // --- Werte schreiben (nach dem Umbenennen, damit die Bereiche stimmen) ---

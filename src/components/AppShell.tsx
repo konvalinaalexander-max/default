@@ -7,6 +7,7 @@ import { useReferenceData } from "@/lib/useReferenceData";
 import { useSession } from "@/lib/useSession";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { LanguagePicker } from "./LanguagePicker";
+import { EinrichtenKnopf } from "./EinrichtenKnopf";
 import { OverviewScreen } from "./OverviewScreen";
 import { SessionConfigForm } from "./SessionConfigForm";
 import { WeighScreen } from "./WeighScreen";
@@ -51,11 +52,25 @@ export function AppShell() {
   return (
     <Frame>
       {ref.error && (
-        <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {t(lang, "connectionFailed")}{" "}
-          <button type="button" onClick={ref.reload} className="font-semibold underline">
-            {t(lang, "tryAgain")}
-          </button>
+        <div className="mb-3 flex flex-col gap-1 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>
+            {t(lang, "connectionFailed")}{" "}
+            <button type="button" onClick={ref.reload} className="font-semibold underline">
+              {t(lang, "tryAgain")}
+            </button>
+          </span>
+          {/* Der technische Grund gehört sichtbar dazu. Ohne ihn liess sich von aussen
+              nicht unterscheiden, ob das Netz fehlt, die Zugangsdaten falsch sind oder
+              ein Tabellenblatt anders heisst als erwartet. */}
+          <span className="text-xs text-red-500/90">{ref.error}</span>
+        </div>
+      )}
+
+      {/* Ohne Anbauplanung gibt es keine Schläge zur Auswahl - dann muss erkennbar sein,
+          dass zuerst die Einrichtung fehlt, und nicht etwa die Liste leer ist. */}
+      {!ref.loading && !ref.planungGelesen && (
+        <div className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {t(lang, "planMissing")}
         </div>
       )}
 
@@ -80,6 +95,11 @@ export function AppShell() {
           >
             🌐 {t(lang, "language")}
           </button>
+
+          {/* Muss auch hier stehen: Vor der ersten Anlieferung ist die Übersicht nicht
+              erreichbar, und ohne eingerichtete Anbauplanung kommt man gar nicht so weit -
+              der Knopf wäre sonst hinter der Hürde versteckt, die er beseitigt. */}
+          <EinrichtenKnopf lang={lang} onFertig={ref.reload} />
         </SessionConfigForm>
       ) : view === "wiegen" ? (
         <>
@@ -135,6 +155,7 @@ export function AppShell() {
           onBack={() => setView("wiegen")}
           onStartNewSession={session.startNewSession}
           onOpenLanguage={() => setSprachwahlOffen(true)}
+          onEinrichtungFertig={ref.reload}
         />
       )}
 

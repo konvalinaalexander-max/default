@@ -14,7 +14,14 @@ import { NeuDialog } from "./NeuDialog";
  * niemand einen Schlüssel von Hand irgendwohin kopieren. Mehrfaches Drücken ist
  * unschädlich: Jeder Schritt prüft vorher, ob er nötig ist.
  */
-export function EinrichtenKnopf({ lang }: { lang: Lang }) {
+export function EinrichtenKnopf({
+  lang,
+  onFertig,
+}: {
+  lang: Lang;
+  /** Nach erfolgreicher Einrichtung: Stammdaten neu laden, damit die Listen sofort stehen. */
+  onFertig?: () => void;
+}) {
   const [dialogOffen, setDialogOffen] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [bericht, setBericht] = useState<EinrichtungsBericht | null>(null);
@@ -26,7 +33,10 @@ export function EinrichtenKnopf({ lang }: { lang: Lang }) {
     setFehler(null);
     setBericht(null);
     richteSheetEin(ADMIN_PASSWORT)
-      .then(setBericht)
+      .then((b) => {
+        setBericht(b);
+        onFertig?.();
+      })
       .catch((err: Error) => setFehler(err.message))
       .finally(() => setLaeuft(false));
   }
