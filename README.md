@@ -30,38 +30,56 @@ auf genau ein Sheet bekommt — die Angestellten müssen sich nirgends einloggen
    und teile es (Button "Freigeben") mit genau dieser `client_email`-Adresse, Rolle
    **Bearbeiter**.
 
-### 2. Umgebungsvariablen setzen
+### 2. Die vier Zugangswerte bereitlegen
 
-Kopiere `.env.local.example` zu `.env.local` und trage ein:
+Diese vier Werte verbinden die App mit deinem Sheet. Leg sie dir kurz zur Seite —
+eingetragen werden sie im nächsten Schritt bei Vercel.
 
-- `GOOGLE_SHEET_ID`: aus der Sheet-URL
-  (`https://docs.google.com/spreadsheets/d/DIESER_TEIL/edit`)
-- `GOOGLE_SHEET_TAB_NAME`: Name des Tabellenblatts (Tab-Reiter unten im Sheet)
-- `GOOGLE_SERVICE_ACCOUNT_EMAIL`: der `client_email`-Wert aus der JSON-Datei
-- `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`: der komplette `private_key`-Wert aus der
-  JSON-Datei, inklusive `-----BEGIN PRIVATE KEY-----`/`-----END PRIVATE KEY-----`.
-  Die `\n` in der JSON-Datei so belassen wie sie sind (nicht durch echte
-  Zeilenumbrüche ersetzen) — der Code wandelt sie selbst um.
+| Wert | Wo du ihn findest |
+| --- | --- |
+| `GOOGLE_SHEET_ID` | In der Sheet-URL: `docs.google.com/spreadsheets/d/`**`DIESER_TEIL`**`/edit` |
+| `GOOGLE_SHEET_TAB_NAME` | Der Name des Tabellenblatts — der Reiter unten links im Sheet, z.B. `Tabellenblatt1` |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Der Wert von `client_email` in der JSON-Datei aus Schritt 1 |
+| `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | Der Wert von `private_key` in derselben JSON-Datei, komplett von `-----BEGIN PRIVATE KEY-----` bis `-----END PRIVATE KEY-----` |
 
-Danach lokal testen:
+Zum privaten Schlüssel: Du kannst ihn genau so einfügen, wie er in der JSON-Datei
+steht (also mit `\n` als Zeilenumbruch-Zeichen), oder als echten mehrzeiligen Text.
+Die App kommt mit beidem zurecht.
+
+> Der private Schlüssel ist ein Passwort. Nie in eine Chat-Nachricht, nie ins
+> Repository, nie per Mail. Er gehört ausschliesslich in die JSON-Datei und in das
+> Vercel-Formular aus Schritt 3.
+
+### 3. Auf Vercel deployen und die Werte eintragen
+
+1. Auf [vercel.com](https://vercel.com) mit dem GitHub-Konto einloggen.
+2. **Add New… → Project** und dieses Repository auswählen.
+3. Noch **vor** dem Deployen den Abschnitt **Environment Variables** aufklappen und
+   die vier Werte aus Schritt 2 eintragen — jeweils Name links, Wert rechts.
+4. Auf **Deploy** klicken. Nach ein bis zwei Minuten bekommst du eine Adresse wie
+   `kuerbis-erntejournal.vercel.app`.
+
+Wenn du die Werte erst nach dem ersten Deploy einträgst, findest du sie unter
+**Projekt → Settings → Environment Variables**. Wichtig: Damit sie greifen, danach
+einmal neu deployen (**Deployments → beim letzten Eintrag das `⋯`-Menü → Redeploy**).
+
+### 4. QR-Code aushängen
+
+Erzeuge mit einem beliebigen Online-QR-Generator einen Code, der auf deine
+Vercel-Adresse zeigt, und häng ihn beim Wareneingang auf. Angestellte scannen ihn,
+die App öffnet sich direkt im Browser. Über "Zum Startbildschirm hinzufügen" wird
+daraus ein App-Icon auf dem Handy.
+
+### Optional: lokal auf dem eigenen Rechner laufen lassen
+
+Nur nötig, wenn du am Code entwickeln willst — für den normalen Betrieb kannst du
+das überspringen. Kopiere dazu `.env.local.example` zu `.env.local`, trage dieselben
+vier Werte ein und starte:
 
 ```bash
 npm install
 npm run dev
 ```
-
-### 3. Hosting auf Vercel
-
-1. Auf [vercel.com](https://vercel.com) mit GitHub einloggen, dieses Repository
-   importieren ("Add New… → Project").
-2. Bei den Projekteinstellungen unter **Environment Variables** dieselben vier Werte
-   wie in `.env.local` eintragen.
-3. Deployen. Du bekommst eine Adresse wie `kuerbis-erntejournal.vercel.app`
-   (später kann eine eigene Domain verbunden werden).
-4. Einen QR-Code erzeugen, der auf diese Adresse zeigt (z.B. mit einem beliebigen
-   Online-QR-Generator), und beim Wareneingang aushängen. Angestellte scannen ihn,
-   die App öffnet sich direkt im Browser — "Zum Homescreen hinzufügen" macht daraus
-   ein App-Icon fürs Handy.
 
 ## Funktionsweise
 
