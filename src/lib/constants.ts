@@ -32,7 +32,7 @@ export const GEBINDEARTEN: Gebindeart[] = [
  */
 export const ADMIN_PASSWORT = "Sammy";
 
-export const STANDARD_ANZAHL_KISTEN = 32;
+export const STANDARD_ANZAHL_KISTEN = 36;
 export const STANDARD_GEBINDEART = GEBINDEARTEN[0].name;
 
 /**
@@ -130,6 +130,9 @@ export const COLUMNS = {
   nettoProPalette: 9, // I (Formel)
   nettoProKiste: 10, // J (Formel)
   id: 11, // K (Palettenkennung der App)
+  // L bewusst ganz rechts angehängt: So verschiebt sich keine bestehende Spalte, und
+  // die Ertragsformeln (die auf C, D und I zeigen) bleiben unberührt.
+  zeit: 12, // L (Uhrzeit der Erfassung)
 } as const;
 
 /** Spaltenüberschriften, die die Einrichtungsfunktion setzt. */
@@ -145,6 +148,7 @@ export const JOURNAL_HEADER = [
   "Netto pro Palette [kg]",
   "Netto pro Kiste [kg]",
   "ID (App)",
+  "Uhrzeit",
 ] as const;
 
 // Ertragsjournal wie die Anbauplanung: Zeile 1 Hinweis, Zeile 2 Köpfe, Daten ab Zeile 3.

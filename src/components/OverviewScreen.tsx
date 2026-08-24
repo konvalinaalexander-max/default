@@ -32,6 +32,8 @@ interface OverviewScreenProps {
   onBack: () => void;
   onStartNewSession: () => void;
   onOpenLanguage: () => void;
+  /** Ohne erfasste Palette gilt im Formular immer das heutige Datum. */
+  datumAutoHeute?: boolean;
   /** Nach der Einrichtung die Stammdaten neu laden. */
   onEinrichtungFertig: () => void;
 }
@@ -62,6 +64,7 @@ export function OverviewScreen({
   onBack,
   onStartNewSession,
   onOpenLanguage,
+  datumAutoHeute,
   onEinrichtungFertig,
 }: OverviewScreenProps) {
   const [pendingConfig, setPendingConfig] = useState<Partial<SessionConfig> | null>(null);
@@ -112,6 +115,7 @@ export function OverviewScreen({
           onAddPerson={onAddPerson}
           onNeuePlanung={onNeuePlanung}
           onSubmit={handleConfigSubmit}
+          datumAutoHeute={datumAutoHeute}
           submitLabel={t(lang, "save")}
           title={t(lang, "settings")}
         >

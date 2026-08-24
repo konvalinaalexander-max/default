@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { STANDARD_ANZAHL_KISTEN, STANDARD_GEBINDEART } from "@/lib/constants";
-import { formatNumber, t, type Lang } from "@/lib/i18n";
+import { formatMenge, formatNumber, t, type Lang } from "@/lib/i18n";
 import { pruefePlausibilitaet, waehlePrior } from "@/lib/plausibility";
 import type { SorteStats, SorteVorwissen } from "@/lib/types";
+import { BestaetigungsDialog } from "./BestaetigungsDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { NeuDialog } from "./NeuDialog";
 import { QuickPicker } from "./QuickPicker";
@@ -14,8 +15,12 @@ interface WeighScreenProps {
   sorte: string;
   schlag: string;
   gebindeart: string;
+  /** Alle Schläge der Anbauplanung - auch hier wechselbar, ohne in die Einstellungen zu müssen. */
+  schlaege: string[];
   sorten: string[];
   gebindearten: string[];
+  /** Erlaubte Sorten je Schlag; nötig, um beim Schlagwechsel zu prüfen, ob die Sorte passt. */
+  sortenFuerSchlag: (schlag: string) => string[];
   sortenStats: Record<string, SorteStats>;
   allgemeineStats: SorteStats | null;
   /** Vorwissen aus den Vorjahren, damit eine Sorte im neuen Jahr nicht bei null anfängt. */
@@ -26,14 +31,17 @@ interface WeighScreenProps {
   onNeuePlanung: (schlag: string, sorte: string) => void;
   /** Das Gebinde wird immer mitgegeben, damit kein noch nicht übernommener Zustand greift. */
   onSave: (draft: { anzahlKisten: number; gewichtBrutto: number; gebindeart: string }) => void;
+  onChangeSchlag: (schlag: string) => void;
+  /** Schlag und Sorte in einem Zug - verhindert einen Zwischenzustand ohne Sorte. */
+  onChangeSchlagUndSorte: (schlag: string, sorte: string) => void;
   onChangeSorte: (sorte: string) => void;
   onChangeGebindeart: (gebindeart: string) => void;
 }
 
 type DialogZustand =
-  | { art: "warnung"; von: number; bis: number; ist: number }
+  | { art: "warnung"; von: number; bis: number; ist: number; kisten: number; gewicht: number }
   | { art: "unmoeglich" }
-  | { art: "gebinde"; kisten: number; gewicht: number }
+  | { art: "bestaetigung"; kisten: number; gewicht: number }
   | null;
 
 export function WeighScreen({
@@ -41,8 +49,10 @@ export function WeighScreen({
   sorte,
   schlag,
   gebindeart,
+  schlaege,
   sorten,
   gebindearten,
+  sortenFuerSchlag,
   sortenStats,
   allgemeineStats,
   vorwissen,
@@ -50,15 +60,26 @@ export function WeighScreen({
   offeneAnzahl,
   onNeuePlanung,
   onSave,
+  onChangeSchlag,
+  onChangeSchlagUndSorte,
   onChangeSorte,
   onChangeGebindeart,
 }: WeighScreenProps) {
   const [kisten, setKisten] = useState(String(STANDARD_ANZAHL_KISTEN));
   const [gewicht, setGewicht] = useState("");
   const [dialog, setDialog] = useState<DialogZustand>(null);
+  const [schlagwahlOffen, setSchlagwahlOffen] = useState(false);
   const [sortenwahlOffen, setSortenwahlOffen] = useState(false);
   const [gebindewahlOffen, setGebindewahlOffen] = useState(false);
   const [neuSorteOffen, setNeuSorteOffen] = useState(false);
+  const [neuSchlagOffen, setNeuSchlagOffen] = useState(false);
+  /**
+   * Ein gewählter Schlag, zu dem die Sorte noch fehlt. Er wird bewusst erst übernommen,
+   * wenn auch die Sorte feststeht: Würde die Sorte zwischenzeitlich geleert, gälte die
+   * Anlieferung als unvollständig und die App spränge zurück ins Einrichtungsformular -
+   * mitten im Wiegen.
+   */
+  const [offenerSchlag, setOffenerSchlag] = useState<string | null>(null);
   const gewichtRef = useRef<HTMLInputElement>(null);
   const kistenRef = useRef<HTMLInputElement>(null);
 
@@ -93,53 +114,77 @@ export function WeighScreen({
         von: check.erwartetVon,
         bis: check.erwartetBis,
         ist: check.istWertProKiste,
+        kisten: anzahlKisten,
+        gewicht: gewichtBrutto,
       });
       return;
     }
-    weiterNachGewichtspruefung(anzahlKisten, gewichtBrutto);
+    setDialog({ art: "bestaetigung", kisten: anzahlKisten, gewicht: gewichtBrutto });
   }
 
-  /**
-   * Nach der Gewichtsprüfung folgt die Gebinde-Rückfrage. Sie kommt bei jeder
-   * abweichenden Palette erneut - genau das verhindert, dass eine einmalige
-   * Umstellung unbemerkt für alle folgenden Paletten weiterläuft.
-   */
-  function weiterNachGewichtspruefung(anzahlKisten: number, gewichtBrutto: number) {
-    if (gebindeAbweichend) {
-      setDialog({ art: "gebinde", kisten: anzahlKisten, gewicht: gewichtBrutto });
-      return;
-    }
-    commit(anzahlKisten, gewichtBrutto);
-  }
-
-  function commit(anzahlKisten: number, gewichtBrutto: number, gebinde = gebindeart) {
-    onSave({ anzahlKisten, gewichtBrutto, gebindeart: gebinde });
+  function commit(anzahlKisten: number, gewichtBrutto: number) {
+    onSave({ anzahlKisten, gewichtBrutto, gebindeart });
     setGewicht("");
     setKisten(String(STANDARD_ANZAHL_KISTEN));
     setDialog(null);
     gewichtRef.current?.focus();
   }
 
+  /**
+   * Nach einem Schlagwechsel muss die Sorte dazu passen. Wächst sie dort nicht, wird sie
+   * geleert und die Sortenwahl gleich geöffnet - so kann gar keine Kombination entstehen,
+   * die es in der Anbauplanung nicht gibt.
+   */
+  function waehleSchlag(neuerSchlag: string) {
+    setSchlagwahlOffen(false);
+    if (neuerSchlag === schlag) return;
+
+    const erlaubt = sortenFuerSchlag(neuerSchlag);
+    if (erlaubt.includes(sorte)) {
+      onChangeSchlag(neuerSchlag);
+      return;
+    }
+    // Wächst dort nur eine Sorte, ist die Wahl eindeutig - dann ohne Rückfrage beides setzen.
+    if (erlaubt.length === 1) {
+      onChangeSchlagUndSorte(neuerSchlag, erlaubt[0]);
+      return;
+    }
+    // Sonst zuerst die Sorte klären; bis dahin bleibt die Anlieferung unverändert.
+    setOffenerSchlag(neuerSchlag);
+    setSortenwahlOffen(true);
+  }
+
   return (
-    <div className="flex flex-1 flex-col gap-6">
-      <div className="flex flex-col items-center gap-1">
-        <div className="flex w-full items-center justify-center gap-2">
-          {/* Lange Sortennamen dürfen den Gebinde-Knopf nicht aus dem Bild schieben:
-              die Sorte schrumpft und kürzt notfalls ab, das Gebinde bleibt fest. */}
+    <div className="flex flex-1 flex-col gap-5">
+      {/* Kopf: Schlag, Sorte und Gebinde bewusst als grosse, gut sichtbare Knöpfe.
+          Genau hier entstehen die teuren Fehler - eine falsch stehende Angabe wird
+          sonst über viele Paletten hinweg mitgeschleppt. */}
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => setSchlagwahlOffen(true)}
+          aria-label={t(lang, "changeField")}
+          className="w-full truncate rounded-xl border-2 border-neutral-300 bg-white px-4 py-3 text-xl font-bold active:bg-neutral-50"
+        >
+          {schlag || t(lang, "pleaseSelect")} ▾
+        </button>
+
+        <div className="flex items-stretch gap-2">
+          {/* Die Sorte bekommt den Platz, das Gebinde bleibt schmal - es ist fast immer
+              der Standard. Weicht es ab, springt es durch die Farbe sofort ins Auge. */}
           <button
             type="button"
             onClick={() => setSortenwahlOffen(true)}
-            className="min-w-0 truncate rounded-xl border border-neutral-300 bg-white px-4 py-2 text-lg font-semibold active:bg-neutral-50"
+            aria-label={t(lang, "changeVariety")}
+            className="min-w-0 flex-1 truncate rounded-xl border-2 border-neutral-300 bg-white px-4 py-3 text-xl font-bold active:bg-neutral-50"
           >
-            {sorte} ▾
+            {sorte || t(lang, "pleaseSelect")} ▾
           </button>
-          {/* Gebinde bleibt bewusst schmal - in fast allen Fällen ist es der Standard.
-              Weicht es ab, springt es durch die Farbe sofort ins Auge. */}
           <button
             type="button"
             onClick={() => setGebindewahlOffen(true)}
             aria-label={t(lang, "changePackaging")}
-            className={`shrink-0 whitespace-nowrap rounded-xl border px-3 py-2 text-lg font-semibold active:opacity-80 ${
+            className={`shrink-0 whitespace-nowrap rounded-xl border-2 px-3 py-3 text-lg font-bold active:opacity-80 ${
               gebindeAbweichend
                 ? "border-orange-500 bg-orange-100 text-orange-800"
                 : "border-neutral-300 bg-white text-neutral-500"
@@ -148,14 +193,12 @@ export function WeighScreen({
             {gebindeart} ▾
           </button>
         </div>
-        <span className="text-sm text-neutral-500">
-          {schlag}
-          {offeneAnzahl > 0 && (
-            <span className="ml-2 text-orange-600">
-              · {t(lang, "saving")} ({offeneAnzahl})
-            </span>
-          )}
-        </span>
+
+        {offeneAnzahl > 0 && (
+          <span className="text-center text-sm text-orange-600">
+            {t(lang, "saving")} ({offeneAnzahl})
+          </span>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col justify-center gap-6">
@@ -218,30 +261,14 @@ export function WeighScreen({
           ].join("\n")}
           confirmLabel={t(lang, "saveAnyway")}
           cancelLabel={t(lang, "fixEntry")}
-          onConfirm={() => weiterNachGewichtspruefung(zahl(kisten), zahl(gewicht))}
+          // Auch ein bewusst bestätigtes Ausreisser-Gewicht läuft noch über die
+          // Schlussbestätigung - dort steht, worauf es gebucht wird.
+          onConfirm={() =>
+            setDialog({ art: "bestaetigung", kisten: dialog.kisten, gewicht: dialog.gewicht })
+          }
           onCancel={() => {
             setDialog(null);
-            kistenRef.current?.focus();
-            kistenRef.current?.select();
-          }}
-        />
-      )}
-
-      {dialog?.art === "gebinde" && (
-        <ConfirmDialog
-          title={t(lang, "packagingConfirmTitle")}
-          message={t(lang, "packagingConfirmMsg", {
-            gebinde: gebindeart,
-            standard: STANDARD_GEBINDEART,
-          })}
-          confirmLabel={t(lang, "packagingConfirmYes", { gebinde: gebindeart })}
-          cancelLabel={t(lang, "packagingBackToStandard", { standard: STANDARD_GEBINDEART })}
-          onConfirm={() => commit(dialog.kisten, dialog.gewicht)}
-          onCancel={() => {
-            // Zurück auf den Standard und direkt speichern - der häufigste Fall ist,
-            // dass das abweichende Gebinde versehentlich stehen geblieben ist.
-            onChangeGebindeart(STANDARD_GEBINDEART);
-            commit(dialog.kisten, dialog.gewicht, STANDARD_GEBINDEART);
+            gewichtRef.current?.focus();
           }}
         />
       )}
@@ -260,22 +287,89 @@ export function WeighScreen({
         />
       )}
 
+      {dialog?.art === "bestaetigung" && (
+        <BestaetigungsDialog
+          lang={lang}
+          zeilen={[
+            { label: t(lang, "field"), wert: schlag },
+            { label: t(lang, "variety"), wert: sorte },
+            {
+              label: t(lang, "packagingLabel"),
+              wert: gebindeart,
+              // Ein abweichendes Gebinde wird hervorgehoben: Genau dort wurde zuletzt
+              // vergessen, es umzustellen.
+              betont: gebindeAbweichend,
+            },
+            { label: t(lang, "cratesLabel"), wert: formatNumber(lang, dialog.kisten, 0) },
+            {
+              label: t(lang, "weightLabelShort"),
+              wert: `${formatMenge(lang, dialog.gewicht)} kg`,
+            },
+          ]}
+          onBestaetigen={() => commit(dialog.kisten, dialog.gewicht)}
+          onAendern={() => {
+            setDialog(null);
+            gewichtRef.current?.focus();
+          }}
+        />
+      )}
+
+      {schlagwahlOffen && (
+        <QuickPicker
+          lang={lang}
+          title={t(lang, "changeField")}
+          options={schlaege}
+          current={schlag}
+          neuModus="geschuetzt"
+          onNeuAngefragt={() => {
+            setSchlagwahlOffen(false);
+            setNeuSchlagOffen(true);
+          }}
+          onSelect={waehleSchlag}
+          onCancel={() => setSchlagwahlOffen(false)}
+        />
+      )}
+
+      {neuSchlagOffen && (
+        <NeuDialog
+          lang={lang}
+          titel={t(lang, "newFieldTitle")}
+          felder={[
+            { key: "schlag", label: t(lang, "field") },
+            { key: "sorte", label: t(lang, "varietyOnField") },
+          ]}
+          onAbbrechen={() => setNeuSchlagOffen(false)}
+          onSpeichern={({ schlag: neuerSchlag, sorte: neueSorte }) => {
+            onNeuePlanung(neuerSchlag, neueSorte);
+            onChangeSchlag(neuerSchlag);
+            onChangeSorte(neueSorte);
+            setNeuSchlagOffen(false);
+          }}
+        />
+      )}
+
       {sortenwahlOffen && (
         <QuickPicker
           lang={lang}
           title={t(lang, "changeVariety")}
-          options={sorten}
-          current={sorte}
+          options={offenerSchlag ? sortenFuerSchlag(offenerSchlag) : sorten}
+          current={offenerSchlag ? "" : sorte}
           neuModus="geschuetzt"
           onNeuAngefragt={() => {
             setSortenwahlOffen(false);
             setNeuSorteOffen(true);
           }}
           onSelect={(neu) => {
-            onChangeSorte(neu);
+            if (offenerSchlag) onChangeSchlagUndSorte(offenerSchlag, neu);
+            else onChangeSorte(neu);
+            setOffenerSchlag(null);
             setSortenwahlOffen(false);
           }}
-          onCancel={() => setSortenwahlOffen(false)}
+          // Abbrechen lässt alles wie es war - auch den bisherigen Schlag.
+          onCancel={() => {
+            setOffenerSchlag(null);
+            setSortenwahlOffen(false);
+          }}
         />
       )}
 
@@ -284,10 +378,16 @@ export function WeighScreen({
           lang={lang}
           titel={t(lang, "newVarietyTitle")}
           felder={[{ key: "sorte", label: t(lang, "varietyOnField") }]}
-          onAbbrechen={() => setNeuSorteOffen(false)}
+          onAbbrechen={() => {
+            setOffenerSchlag(null);
+            setNeuSorteOffen(false);
+          }}
           onSpeichern={({ sorte: neu }) => {
-            onNeuePlanung(schlag, neu);
-            onChangeSorte(neu);
+            const zielSchlag = offenerSchlag ?? schlag;
+            onNeuePlanung(zielSchlag, neu);
+            if (offenerSchlag) onChangeSchlagUndSorte(offenerSchlag, neu);
+            else onChangeSorte(neu);
+            setOffenerSchlag(null);
             setNeuSorteOffen(false);
           }}
         />

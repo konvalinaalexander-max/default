@@ -10,6 +10,12 @@ export interface PaletteEntry {
   anzahlKisten: number;
   gebindeart: string; // wird immer geschrieben, im Normalfall der Standardwert
   bemerkung?: string;
+  /**
+   * Uhrzeit der Erfassung "HH:MM", auf dem Gerät im Moment des Wiegens festgehalten.
+   * Bewusst nicht erst beim Schreiben ins Sheet gesetzt: Eine offline erfasste Palette
+   * wird u.U. Stunden später nachgesendet und trüge sonst die falsche Zeit.
+   */
+  zeit?: string;
   sheetRow: number | null; // Zeilennummer im Sheet, sobald bekannt (nach erstem erfolgreichen Sync)
   syncStatus: "pending" | "syncing" | "synced" | "error";
   syncError?: string;

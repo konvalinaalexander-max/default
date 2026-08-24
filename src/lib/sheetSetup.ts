@@ -40,7 +40,7 @@ export const JOURNAL_HINWEIS =
   "SAISONSTART: Nur die Zeilen ab Zeile 3 löschen — Zeile 1 (dieser Hinweis) und Zeile 2 " +
   "(die Spaltenköpfe) stehen lassen. Die App schreibt neue Einträge automatisch unter den " +
   "letzten Eintrag; ist alles gelöscht, beginnt sie wieder in Zeile 3. Die Spalten I und J " +
-  "(Netto) und K (ID) setzt die App — nicht von Hand ändern.";
+  "(Netto), K (ID) und L (Uhrzeit) setzt die App — nicht von Hand ändern.";
 
 /** Inhalt des Read-Me-Blatts (eine Zeile je Absatz, Spalte A). */
 const README_INHALT: string[] = [
@@ -171,10 +171,14 @@ export async function richteSheetEin(): Promise<EinrichtungsBericht> {
     bericht.uebersprungen.push("Journal-Tab hiess schon richtig");
   }
 
-  // Spalte K für die Kennung.
-  if (journal.spalten < COLUMNS.id) {
+  // Spalten bis L (Kennung + Uhrzeit) müssen vorhanden sein.
+  if (journal.spalten < COLUMNS.zeit) {
     req.push({
-      appendDimension: { sheetId: journal.gid, dimension: "COLUMNS", length: COLUMNS.id - journal.spalten },
+      appendDimension: {
+        sheetId: journal.gid,
+        dimension: "COLUMNS",
+        length: COLUMNS.zeit - journal.spalten,
+      },
     });
   }
 

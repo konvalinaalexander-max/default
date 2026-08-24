@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "./api";
 import { STANDARD_GEBINDEART } from "./constants";
-import { createId, todayIso } from "./id";
+import { createId, nowHhMm, todayIso } from "./id";
 import type { PaletteDraft, PaletteEntry, SessionConfig } from "./types";
 
 const STORAGE_KEY = "kuerbis-erfassung-session-v1";
@@ -56,8 +56,20 @@ function loadStored(): StoredState {
     if (!raw) return leer;
     const parsed = JSON.parse(raw) as Partial<StoredState>;
     const entries = (Array.isArray(parsed.entries) ? parsed.entries : []).map(uebernehmeSchlag);
+    const gespeicherteConfig = { ...defaultConfig(), ...uebernehmeSchlag(parsed.config ?? {}) };
+
+    /**
+     * Kernpunkt gegen den Datums-Fehler: Ein gespeichertes Datum ist nur dann schützenswert,
+     * wenn dazu auch schon Paletten erfasst sind. Liegt die letzte Nutzung Tage zurück und
+     * die Anlieferung ist längst abgeschlossen (keine Einträge mehr), stünde sonst beim
+     * nächsten Öffnen stillschweigend das alte Datum im Formular - und niemand prüft ein
+     * Feld, das schon ausgefüllt aussieht. Ohne Einträge gibt es nichts zu verlieren, also
+     * gilt immer heute.
+     */
+    if (entries.length === 0) gespeicherteConfig.datum = todayIso();
+
     return {
-      config: { ...defaultConfig(), ...uebernehmeSchlag(parsed.config ?? {}) },
+      config: gespeicherteConfig,
       // Beim Laden gilt alles als offen, was beim Schliessen noch unterwegs war -
       // sonst bliebe eine Zeile für immer im Zustand "wird gespeichert" hängen.
       entries: entries.map((e) => ({
@@ -89,6 +101,11 @@ export function useSession() {
   // Für Hintergrundaufgaben (Wiederholung) immer der aktuelle Stand, ohne Neustart des Timers.
   const entriesRef = useRef(entries);
   const letzteEingabe = useRef<{ signatur: string; zeit: number } | null>(null);
+  /**
+   * Merkt sich, ob in dieser Sitzung bewusst ein anderes Datum als heute gewählt wurde
+   * (Nachtragen). Nur dann darf die automatische Korrektur unten es in Ruhe lassen.
+   */
+  const datumBewusstGesetzt = useRef(false);
 
   useEffect(() => {
     entriesRef.current = entries;
@@ -124,6 +141,31 @@ export function useSession() {
       document.removeEventListener("visibilitychange", beiRueckkehr);
     };
   }, [entries.length, letzteAktivitaet]);
+
+  /**
+   * Zweite Absicherung gegen ein veraltetes Datum: Liegt die App über Mitternacht offen
+   * (oder wurde sie lange nicht geschlossen), stimmt das beim Laden gesetzte Datum
+   * irgendwann nicht mehr. Solange noch keine Palette erfasst ist, gibt es nichts zu
+   * schützen - dann wird still auf heute korrigiert. Ein bewusst gewähltes Datum
+   * (Nachtragen) und jede Sitzung mit Einträgen bleiben unangetastet; für die gibt es
+   * stattdessen die sichtbare Rückfrage über `datumIstVeraltet`.
+   */
+  useEffect(() => {
+    const korrigiere = () => {
+      if (entriesRef.current.length > 0 || datumBewusstGesetzt.current) return;
+      const heute = todayIso();
+      setConfigState((prev) => (prev.datum === heute ? prev : { ...prev, datum: heute }));
+    };
+    const beiRueckkehr = () => {
+      if (document.visibilityState === "visible") korrigiere();
+    };
+    const timer = window.setInterval(korrigiere, 60_000);
+    document.addEventListener("visibilitychange", beiRueckkehr);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", beiRueckkehr);
+    };
+  }, []);
 
   const updateEntryLocal = useCallback((id: string, changes: Partial<PaletteEntry>) => {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...changes } : e)));
@@ -178,6 +220,8 @@ export function useSession() {
         gewichtBrutto: draft.gewichtBrutto,
         anzahlKisten: draft.anzahlKisten,
         gebindeart: draft.gebindeart || config.gebindeart || STANDARD_GEBINDEART,
+        // Auf dem Gerät im Moment des Wiegens, nicht erst beim Senden.
+        zeit: nowHhMm(),
         sheetRow: null,
         syncStatus: "syncing",
         createdAt: jetzt,
@@ -281,6 +325,8 @@ export function useSession() {
    */
   const applyConfigChange = useCallback(
     (changes: Partial<SessionConfig>, retro: boolean) => {
+      // Ein Datum ungleich heute kann nur absichtlich gewählt worden sein (Nachtragen).
+      if (changes.datum && changes.datum !== todayIso()) datumBewusstGesetzt.current = true;
       setConfigState((prev) => ({ ...prev, ...changes }));
       if (!retro) return;
 
@@ -324,6 +370,8 @@ export function useSession() {
   const startNewSession = useCallback(() => {
     setEntries([]);
     letzteEingabe.current = null;
+    // Eine neue Anlieferung startet immer bei heute, auch nach einem Nachtrag.
+    datumBewusstGesetzt.current = false;
     setLetzteAktivitaet(Date.now());
     setPauseZuLang(false);
     // Person bleibt stehen (meist dieselbe), Gebindeart startet wieder beim Standard.
@@ -331,6 +379,7 @@ export function useSession() {
   }, []);
 
   const setDatum = useCallback((datum: string) => {
+    if (datum !== todayIso()) datumBewusstGesetzt.current = true;
     setConfigState((prev) => ({ ...prev, datum }));
   }, []);
 

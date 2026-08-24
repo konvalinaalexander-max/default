@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
+import { todayIso } from "@/lib/id";
 import type { SessionConfig } from "@/lib/types";
 import { ComboField } from "./ComboField";
 import { NeuDialog } from "./NeuDialog";
@@ -17,6 +18,12 @@ interface SessionConfigFormProps {
   /** Legt ein neues Schlag-Sorte-Paar in der Anbauplanung an. */
   onNeuePlanung: (schlag: string, sorte: string) => void;
   onSubmit: (config: SessionConfig) => void;
+  /**
+   * Wenn true, gilt ohne bewusste Änderung immer das heutige Datum - auch wenn das
+   * Formular seit gestern offen liegt. Wird gesetzt, solange die Anlieferung noch keine
+   * erfasste Palette hat; dann gibt es kein Datum, das man schützen müsste.
+   */
+  datumAutoHeute?: boolean;
   submitLabel: string;
   title?: string;
   subtitle?: string;
@@ -33,6 +40,7 @@ export function SessionConfigForm({
   onAddPerson,
   onNeuePlanung,
   onSubmit,
+  datumAutoHeute = false,
   submitLabel,
   title,
   subtitle,
@@ -40,9 +48,14 @@ export function SessionConfigForm({
 }: SessionConfigFormProps) {
   const [local, setLocal] = useState<SessionConfig>(config);
   const [neuDialog, setNeuDialog] = useState<"schlag" | "sorte" | null>(null);
+  /** Ob die Person das Datumsfeld selbst angefasst hat (dann nie überschreiben). */
+  const [datumBeruehrt, setDatumBeruehrt] = useState(false);
   const datumId = useId();
 
-  const complete = local.datum && local.person && local.schlag && local.sorte;
+  // Angezeigt und gespeichert wird heute, solange niemand das Feld bewusst geändert hat.
+  const datumWert = !datumBeruehrt && datumAutoHeute ? todayIso() : local.datum;
+
+  const complete = datumWert && local.person && local.schlag && local.sorte;
   const sorten = local.schlag ? sortenFuerSchlag(local.schlag) : [];
 
   function set<K extends keyof SessionConfig>(key: K, value: SessionConfig[K]) {
@@ -78,8 +91,11 @@ export function SessionConfigForm({
         <input
           id={datumId}
           type="date"
-          value={local.datum}
-          onChange={(e) => set("datum", e.target.value)}
+          value={datumWert}
+          onChange={(e) => {
+            setDatumBeruehrt(true);
+            set("datum", e.target.value);
+          }}
           className="rounded-xl border border-neutral-300 bg-white px-4 py-3 text-lg"
         />
       </div>
@@ -118,7 +134,7 @@ export function SessionConfigForm({
       <button
         type="button"
         disabled={!complete}
-        onClick={() => onSubmit(local)}
+        onClick={() => onSubmit({ ...local, datum: datumWert })}
         className="mt-2 rounded-2xl bg-orange-600 py-4 text-xl font-semibold text-white shadow-sm active:bg-orange-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
       >
         {submitLabel}

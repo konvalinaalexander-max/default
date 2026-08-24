@@ -64,7 +64,7 @@ export function colLetter(col: number): string {
   return s;
 }
 
-const LETZTE_SPALTE = colLetter(COLUMNS.id);
+const LETZTE_SPALTE = colLetter(COLUMNS.zeit);
 
 /** Einmal aufgelöster Tab-Name des Journals. */
 let journalTabCache: string | null = null;
@@ -517,7 +517,9 @@ export async function appendPalette(
     spreadsheetId: getSheetId(),
     range: `${blattRef(tab)}!${colLetter(COLUMNS.nettoProPalette)}${sheetRow}:${LETZTE_SPALTE}${sheetRow}`,
     valueInputOption: "USER_ENTERED",
-    requestBody: { values: [[...formelWerte(sheetRow, entry.gebindeart), entry.id]] },
+    requestBody: {
+      values: [[...formelWerte(sheetRow, entry.gebindeart), entry.id, entry.zeit ?? ""]],
+    },
   });
 
   return { sheetRow };
@@ -586,7 +588,9 @@ export async function updatePalette(sheetRow: number, entry: PaletteEntry): Prom
     range: rowRange(await journalTabOderNeu(), zeile),
     valueInputOption: "USER_ENTERED",
     requestBody: {
-      values: [[...rowValues(entry), ...formelWerte(zeile, entry.gebindeart), entry.id]],
+      values: [
+        [...rowValues(entry), ...formelWerte(zeile, entry.gebindeart), entry.id, entry.zeit ?? ""],
+      ],
     },
   });
 }

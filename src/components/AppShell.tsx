@@ -84,6 +84,9 @@ export function AppShell() {
           onAddPerson={ref.addLocalPerson}
           onNeuePlanung={ref.addLocalPlanung}
           onSubmit={(cfg) => session.applyConfigChange(cfg, false)}
+          // Ohne erfasste Palette gibt es kein Datum, das man schützen müsste - dann
+          // gilt immer heute, selbst wenn das Formular seit gestern offen liegt.
+          datumAutoHeute={session.entries.length === 0}
           submitLabel={t(lang, "startWeighing")}
           title={t(lang, "newDeliveryTitle")}
           subtitle={t(lang, "setupHint")}
@@ -118,8 +121,10 @@ export function AppShell() {
             sorte={session.config.sorte}
             schlag={session.config.schlag}
             gebindeart={session.config.gebindeart}
+            schlaege={ref.schlaege}
             // Nur die Sorten, die auf diesem Schlag stehen.
             sorten={ref.sortenFuerSchlag(session.config.schlag)}
+            sortenFuerSchlag={ref.sortenFuerSchlag}
             gebindearten={ref.gebindearten}
             sortenStats={ref.sortenStats}
             allgemeineStats={ref.allgemeineStats}
@@ -128,6 +133,15 @@ export function AppShell() {
             offeneAnzahl={session.offeneAnzahl}
             onNeuePlanung={ref.addLocalPlanung}
             onSave={session.addEntry}
+            onChangeSchlag={(schlag) => {
+              // Nur für neue Paletten - die bereits erfassten behalten ihren Schlag.
+              session.applyConfigChange({ schlag }, false);
+            }}
+            onChangeSchlagUndSorte={(schlag, sorte) => {
+              // Beides zusammen: sonst wäre die Anlieferung kurz ohne Sorte und die App
+              // würde zurück ins Einrichtungsformular springen.
+              session.applyConfigChange({ schlag, sorte }, false);
+            }}
             onChangeSorte={(sorte) => {
               // Nur für neue Paletten - die bereits erfassten behalten ihre Sorte.
               session.applyConfigChange({ sorte }, false);
@@ -156,6 +170,7 @@ export function AppShell() {
           onBack={() => setView("wiegen")}
           onStartNewSession={session.startNewSession}
           onOpenLanguage={() => setSprachwahlOffen(true)}
+          datumAutoHeute={session.entries.length === 0}
           onEinrichtungFertig={ref.reload}
         />
       )}
