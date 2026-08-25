@@ -5,8 +5,6 @@ import { t, type Lang } from "@/lib/i18n";
 export interface BestaetigungsZeile {
   label: string;
   wert: string;
-  /** Hebt eine Zeile hervor, z.B. ein vom Standard abweichendes Gebinde. */
-  betont?: boolean;
 }
 
 interface BestaetigungsDialogProps {
@@ -38,9 +36,12 @@ function schriftGroesse(text: string): string {
  *
  * Sinn ist nicht die technische Prüfung - die läuft vorher - sondern der bewusste Moment,
  * in dem das Auge die Angaben nochmals überfliegt. Genau dort fällt auf, dass gerade eine
- * andere Sorte oder ein anderer Schlag geerntet wurde als noch eingestellt ist. Deshalb
- * stehen Bezeichnung und Wert untereinander, alle Zeilen gleich hoch, und die beiden
- * Antworten sind farblich eindeutig getrennt.
+ * andere Sorte oder ein anderer Schlag geerntet wurde als noch eingestellt ist.
+ *
+ * Deshalb sind alle fünf Zeilen bewusst gleich gestaltet: gleiche Höhe, gleicher
+ * Farbstreifen, gleiche Schriftgrösse. Würde eine einzelne Zeile hervorgehoben, zöge sie
+ * den Blick auf sich und die übrigen vier würden überflogen - dabei kann der Fehler in
+ * jeder von ihnen stecken. Gleichwertig dargestellt liest das Auge die Liste als Ganzes.
  */
 export function BestaetigungsDialog({
   lang,
@@ -63,11 +64,10 @@ export function BestaetigungsDialog({
           {zeilen.map((z) => (
             <div
               key={z.label}
-              // Feste Mindesthöhe: Alle fünf Angaben bekommen optisch gleich viel Raum,
-              // dadurch bleibt die Höhe des Dialogs vorhersehbar.
-              className={`flex min-h-[3.25rem] flex-col justify-center rounded-xl px-3 py-1 ${
-                z.betont ? "bg-orange-100 ring-2 ring-orange-400" : "bg-neutral-100"
-              }`}
+              // Feste Mindesthöhe und ein Farbstreifen links an jeder Zeile: Alle fünf
+              // Angaben bekommen optisch gleich viel Gewicht, und der Streifen gibt dem
+              // Auge auf jeder Zeile denselben Ansatzpunkt zum Lesen.
+              className="flex min-h-[3.25rem] flex-col justify-center rounded-lg border-l-4 border-orange-500 bg-neutral-100 py-1 pl-3 pr-3"
             >
               <div className="text-[11px] font-medium uppercase leading-tight tracking-wide text-neutral-500">
                 {z.label}
@@ -76,9 +76,9 @@ export function BestaetigungsDialog({
                   die Bezeichnung darüber und umbruchfähig, damit auch lange Namen
                   vollständig lesbar bleiben statt abgeschnitten zu werden. */}
               <div
-                className={`break-words font-bold leading-tight ${schriftGroesse(z.wert)} ${
-                  z.betont ? "text-orange-900" : "text-neutral-900"
-                }`}
+                className={`break-words font-bold leading-tight text-neutral-900 ${schriftGroesse(
+                  z.wert,
+                )}`}
               >
                 {z.wert}
               </div>

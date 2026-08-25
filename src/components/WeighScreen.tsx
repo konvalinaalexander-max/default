@@ -293,13 +293,7 @@ export function WeighScreen({
           zeilen={[
             { label: t(lang, "field"), wert: schlag },
             { label: t(lang, "variety"), wert: sorte },
-            {
-              label: t(lang, "packagingLabel"),
-              wert: gebindeart,
-              // Ein abweichendes Gebinde wird hervorgehoben: Genau dort wurde zuletzt
-              // vergessen, es umzustellen.
-              betont: gebindeAbweichend,
-            },
+            { label: t(lang, "packagingLabel"), wert: gebindeart },
             { label: t(lang, "cratesLabel"), wert: formatNumber(lang, dialog.kisten, 0) },
             {
               label: t(lang, "weightLabelShort"),
