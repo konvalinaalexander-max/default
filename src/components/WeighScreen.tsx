@@ -89,6 +89,12 @@ export function WeighScreen({
   const kistenRef = useRef<HTMLInputElement>(null);
 
   const gebindeAbweichend = gebindeart !== STANDARD_GEBINDEART;
+  /**
+   * Im Palox liegen die Kürbisse unsortiert, und er wird einzeln vom Stapler auf die
+   * Waage gehoben. Es gibt also nichts zu zählen - das Feld verschwindet, und gewogen
+   * wird nur noch.
+   */
+  const grossgebinde = istGrossgebinde(gebindeart);
 
   useEffect(() => {
     gewichtRef.current?.focus();
@@ -96,8 +102,15 @@ export function WeighScreen({
 
   const zahl = (text: string) => Number(text.replace(",", "."));
 
+  /**
+   * Anzahl Gebinde auf der Waage. Beim Grossgebinde ist sie nicht eingetippt, sondern
+   * feststehend eins - deshalb wird sie hier abgeleitet und nicht im Feld gehalten. Wer
+   * zwischendurch auf Palox und zurück stellt, findet seine 36 unverändert wieder.
+   */
+  const anzahlGebinde = grossgebinde ? 1 : zahl(kisten);
+
   function speichern() {
-    const anzahlKisten = zahl(kisten);
+    const anzahlKisten = anzahlGebinde;
     const gewichtBrutto = zahl(gewicht);
     if (!anzahlKisten || !gewichtBrutto) return;
 
@@ -227,34 +240,41 @@ export function WeighScreen({
             inputMode="decimal"
             value={gewicht}
             onChange={(e) => setGewicht(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && kistenRef.current?.focus()}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              // Ohne Kistenfeld führt Enter direkt zur Bestätigung.
+              if (grossgebinde) speichern();
+              else kistenRef.current?.focus();
+            }}
             placeholder="0"
             className="rounded-2xl border-2 border-neutral-300 bg-white py-6 text-center text-6xl font-bold tabular-nums focus:border-orange-500 focus:outline-none"
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <label htmlFor="kisten" className="text-center text-lg font-medium text-neutral-600">
-            {t(lang, "crateCount")}
-          </label>
-          <input
-            id="kisten"
-            ref={kistenRef}
-            type="number"
-            inputMode="numeric"
-            value={kisten}
-            onChange={(e) => setKisten(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={(e) => e.key === "Enter" && speichern()}
-            className="rounded-2xl border-2 border-neutral-300 bg-white py-6 text-center text-6xl font-bold tabular-nums focus:border-orange-500 focus:outline-none"
-          />
-        </div>
+        {!grossgebinde && (
+          <div className="flex flex-col gap-2">
+            <label htmlFor="kisten" className="text-center text-lg font-medium text-neutral-600">
+              {t(lang, "crateCount")}
+            </label>
+            <input
+              id="kisten"
+              ref={kistenRef}
+              type="number"
+              inputMode="numeric"
+              value={kisten}
+              onChange={(e) => setKisten(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => e.key === "Enter" && speichern()}
+              className="rounded-2xl border-2 border-neutral-300 bg-white py-6 text-center text-6xl font-bold tabular-nums focus:border-orange-500 focus:outline-none"
+            />
+          </div>
+        )}
       </div>
 
       <button
         type="button"
         onClick={speichern}
-        disabled={!kisten || !gewicht}
+        disabled={!anzahlGebinde || !gewicht}
         className="rounded-2xl bg-orange-600 py-6 text-2xl font-bold text-white shadow-sm active:bg-orange-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
       >
         {t(lang, "next")} →
@@ -308,7 +328,11 @@ export function WeighScreen({
             { label: t(lang, "field"), wert: schlag },
             { label: t(lang, "variety"), wert: sorte },
             { label: t(lang, "packagingLabel"), wert: gebindeLabel(lang, gebindeart) },
-            { label: t(lang, "cratesLabel"), wert: formatNumber(lang, dialog.kisten, 0) },
+            // Beim Palox ist die Anzahl immer 1 - eine Zeile "Kisten: 1" wäre nur
+            // Beiwerk und würde von den Angaben ablenken, auf die es ankommt.
+            ...(grossgebinde
+              ? []
+              : [{ label: t(lang, "cratesLabel"), wert: formatNumber(lang, dialog.kisten, 0) }]),
             {
               label: t(lang, "weightLabelShort"),
               wert: `${formatMenge(lang, dialog.gewicht)} kg`,

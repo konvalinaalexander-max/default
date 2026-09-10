@@ -6,7 +6,6 @@ import {
   blattRef,
   GEBINDEARTEN,
   JOURNAL_SHEET,
-  PALETTE_TARA_KG,
   PLAN_FIRST_DATA_ROW,
   PLAN_SHEET,
   REFERENZ_FIRST_DATA_ROW,
@@ -16,6 +15,7 @@ import {
   isoZuSheetDatum,
   istDatenzeile,
   istGrossgebinde,
+  palettenTara,
   statistikSchluessel,
   taraFuerGebinde,
 } from "./constants";
@@ -166,10 +166,15 @@ function rowValues(entry: {
  * Die beiden Formelspalten, passend zur Zeile und zum Leergut der jeweiligen Gebindeart.
  * Das Leergewicht steht als Zahl in der Formel, damit im Sheet nachvollziehbar bleibt,
  * womit gerechnet wurde. Vorher stand dort fest 1,5 - auch bei IFCO-Kisten.
+ *
+ * Beim Grossgebinde fehlt der Palettenabzug: Ein Holz Palox wird vom Stapler direkt
+ * angehoben, unter ihm liegt keine Palette.
  */
 function formelWerte(row: number, gebindeart?: string | null): string[] {
   const tara = taraFuerGebinde(gebindeart);
-  return [`=E${row}-${PALETTE_TARA_KG}-F${row}*${tara}`, `=I${row}/F${row}`];
+  const palette = palettenTara(gebindeart);
+  const abzug = palette > 0 ? `-${palette}` : "";
+  return [`=E${row}${abzug}-F${row}*${tara}`, `=I${row}/F${row}`];
 }
 
 /**

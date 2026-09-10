@@ -71,16 +71,19 @@ Spalten (1-indexiert, A = 1):
 | F | Anzahl Gebinde | Anzahl Kisten (ganze Zahl) | App |
 | G | Gebindeart (leer = G2) | `""`/`G2`/`IFCO 6410`/`IFCO 6416`/`IFCO 6424`/`Holz Palox` | App |
 | H | Bemerkung | optional | App |
-| I | Netto pro Palette [kg] | **Formel** `=E{r}-25-F{r}*{tara}` | App (Formel) |
+| I | Netto pro Palette [kg] | **Formel** `=E{r}-25-F{r}*{tara}`, beim Grossgebinde ohne `-25` | App (Formel) |
 | J | Netto pro Kiste [kg] | **Formel** `=I{r}/F{r}` | App (Formel) |
 | K | ID (App) | eindeutige Palettenkennung, Spalte ausgeblendet | App |
 
 **Netto-Berechnung (Kernformel):**
 ```
-netto_pro_palette = brutto − 25 − anzahlKisten × tara(gebindeart)
+netto_pro_palette = brutto − palettenTara(gebindeart) − anzahlKisten × tara(gebindeart)
 netto_pro_kiste   = netto_pro_palette / anzahlKisten
 ```
-- `25` kg = angenommenes **Palettengewicht** (`PALETTE_TARA_KG`).
+- `palettenTara(gebindeart)` = `25` kg angenommenes **Palettengewicht**
+  (`PALETTE_TARA_KG`) — aber **`0` beim Grossgebinde**: Ein Holz Palox wird vom Stapler
+  direkt angehoben, unter ihm liegt keine Palette. Die Formel in Spalte I lautet dort
+  entsprechend `=E{r}-F{r}*45`.
 - `tara(gebindeart)` = Leergewicht **eines** Gebindes:
   | Gebindeart | tara [kg] | |
   |-----------|-----------|--|
@@ -91,10 +94,12 @@ netto_pro_kiste   = netto_pro_palette / anzahlKisten
   | Holz Palox | 45 | Grossgebinde |
   Unbekannte/Alt-Bezeichnungen werden über ein Schlüsselwort erkannt: die Modellnummer
   (z. B. „IFCO 6410 schwarz“) bzw. „Palox“ (z. B. „Palox Holz“); sonst gilt G2.
-- **Grossgebinde:** Beim `Holz Palox` steht in Spalte F in der Regel `1`. `netto_pro_kiste`
-  ist dann das Netto **des ganzen Palox** (rund 250–350 kg) und nicht mit dem Wert einer
-  Kiste (rund 12 kg) vergleichbar. Wer über Spalte J auswertet, muss die beiden
-  Gebindeklassen trennen.
+- **Grossgebinde:** Beim `Holz Palox` steht in Spalte F immer `1` — die App fragt dort
+  gar nicht nach einer Anzahl, weil der Palox einzeln gewogen wird und die Kürbisse
+  unsortiert darin liegen. `netto_pro_kiste` (Spalte J) ist damit das Netto **des ganzen
+  Palox** (rund 250–350 kg) und nicht mit dem Wert einer Kiste (rund 12 kg) vergleichbar.
+  Wer über Spalte J auswertet, muss die beiden Gebindeklassen trennen — Kriterium ist
+  Spalte G.
 
 > **Für Datenkonsumenten:** Verlasst euch für „Netto“ auf Spalte **I** (bzw. rechnet die
 > Formel selbst nach). Spalte E ist **brutto**. Die Netto-Formeln stehen nur in echten

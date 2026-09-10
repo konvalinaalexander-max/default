@@ -445,6 +445,14 @@ const TEXTS = {
     pl: "Skrzynki",
     pt: "Caixas",
   },
+  /** Für Grossgebinde: dort gibt es keinen sinnvollen Wert "pro Kiste". */
+  netLabel: {
+    de: "netto",
+    en: "net",
+    hu: "nettó",
+    pl: "netto",
+    pt: "líquido",
+  },
   perCrate: {
     de: "kg pro Kiste",
     en: "kg per crate",

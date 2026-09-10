@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { STANDARD_GEBINDEART, gewichtProKiste } from "@/lib/constants";
+import {
+  STANDARD_GEBINDEART,
+  gewichtProKiste,
+  istGrossgebinde,
+  netGewichtProPalette,
+} from "@/lib/constants";
 import {
   formatDate,
   formatMenge,
@@ -280,6 +285,10 @@ function PaletteCard({
   const status = statusLabel(lang, entry);
   const kgProKiste = gewichtProKiste(entry.gewichtBrutto, entry.anzahlKisten, entry.gebindeart);
   const busy = entry.syncStatus === "syncing";
+  // Beim Grossgebinde ist die Anzahl immer 1 - "Kisten: 1 · 275 kg/Kiste" wäre eine
+  // umständliche Schreibweise für das Netto des Palox. Also wird genau das gezeigt.
+  const grossgebinde = istGrossgebinde(entry.gebindeart);
+  const netto = netGewichtProPalette(entry.gewichtBrutto, entry.anzahlKisten, entry.gebindeart);
 
   function save() {
     onUpdate({
@@ -300,8 +309,16 @@ function PaletteCard({
         <span className={`shrink-0 text-sm font-medium ${status.className}`}>{status.text}</span>
       </div>
       <div className="text-sm text-neutral-500 tabular-nums">
-        {t(lang, "cratesLabel")}: {entry.anzahlKisten} · {formatNumber(lang, kgProKiste, 2)}{" "}
-        {t(lang, "perCrate")}
+        {grossgebinde ? (
+          <>
+            {formatMenge(lang, netto)} kg {t(lang, "netLabel")}
+          </>
+        ) : (
+          <>
+            {t(lang, "cratesLabel")}: {entry.anzahlKisten} ·{" "}
+            {formatNumber(lang, kgProKiste, 2)} {t(lang, "perCrate")}
+          </>
+        )}
       </div>
       <div className="text-sm text-neutral-500">
         {entry.sorte} · {entry.schlag} ·{" "}
@@ -337,20 +354,24 @@ function PaletteCard({
           {/* min-w-0 auf den Spalten und w-full auf den Feldern: ohne min-w-0 kann eine
               flex-1-Spalte nicht unter die Mindestbreite eines Eingabefelds schrumpfen,
               dadurch schob sich das zweite Feld bisher aus dem Bild. */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex min-w-0 flex-col gap-1">
-              <label className="text-xs font-medium text-neutral-500" htmlFor={`k-${entry.id}`}>
-                {t(lang, "cratesLabel")}
-              </label>
-              <input
-                id={`k-${entry.id}`}
-                type="number"
-                inputMode="numeric"
-                value={kisten}
-                onChange={(e) => setKisten(e.target.value)}
-                className="w-full min-w-0 rounded-lg border border-neutral-300 px-3 py-2 text-lg"
-              />
-            </div>
+          <div className={`grid gap-3 ${grossgebinde ? "grid-cols-1" : "grid-cols-2"}`}>
+            {/* Beim Palox gibt es nichts zu zählen - dann bekommt das Gewicht die
+                ganze Breite, statt neben einem sinnlosen Feld mit einer 1 zu stehen. */}
+            {!grossgebinde && (
+              <div className="flex min-w-0 flex-col gap-1">
+                <label className="text-xs font-medium text-neutral-500" htmlFor={`k-${entry.id}`}>
+                  {t(lang, "cratesLabel")}
+                </label>
+                <input
+                  id={`k-${entry.id}`}
+                  type="number"
+                  inputMode="numeric"
+                  value={kisten}
+                  onChange={(e) => setKisten(e.target.value)}
+                  className="w-full min-w-0 rounded-lg border border-neutral-300 px-3 py-2 text-lg"
+                />
+              </div>
+            )}
             <div className="flex min-w-0 flex-col gap-1">
               <label className="text-xs font-medium text-neutral-500" htmlFor={`g-${entry.id}`}>
                 {t(lang, "weightKg")}

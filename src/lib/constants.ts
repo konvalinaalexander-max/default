@@ -41,6 +41,7 @@ export const GEBINDEARTEN: Gebindeart[] = [
 export const ADMIN_PASSWORT = "Sammy";
 
 export const STANDARD_ANZAHL_KISTEN = 36;
+
 export const STANDARD_GEBINDEART = GEBINDEARTEN[0].name;
 
 /**
@@ -229,12 +230,23 @@ export const REFERENZ_HEADER = [
   "Letzte Änderung",
 ] as const;
 
+/**
+ * Ein Grossgebinde bringt keine Palette mit: Der Holz Palox wird vom Stapler direkt
+ * angehoben, unter ihm liegt nichts. Würden die 25 kg trotzdem abgezogen, fehlten sie
+ * bei jedem einzelnen Palox im Ertrag.
+ */
+export function palettenTara(gebindeart?: string | null): number {
+  return istGrossgebinde(gebindeart) ? 0 : PALETTE_TARA_KG;
+}
+
 export function netGewichtProPalette(
   gewichtBrutto: number,
   anzahlKisten: number,
   gebindeart?: string | null
 ): number {
-  return gewichtBrutto - PALETTE_TARA_KG - anzahlKisten * taraFuerGebinde(gebindeart);
+  return (
+    gewichtBrutto - palettenTara(gebindeart) - anzahlKisten * taraFuerGebinde(gebindeart)
+  );
 }
 
 export function gewichtProKiste(
