@@ -19,6 +19,12 @@ interface QuickPickerProps {
    */
   neuModus?: "geschuetzt" | "keine";
   onNeuAngefragt?: () => void;
+  /**
+   * Anzeigetext zu einem Eintrag. Nur nötig, wo der gespeicherte Wert und der angezeigte
+   * auseinanderfallen - bei den Gebindearten, deren Name im Sheet gleich bleiben muss,
+   * auf dem Bildschirm aber in der Sprache der Person steht.
+   */
+  label?: (value: string) => string;
 }
 
 /**
@@ -34,6 +40,7 @@ export function QuickPicker({
   onCancel,
   neuModus = "keine",
   onNeuAngefragt,
+  label = (v) => v,
 }: QuickPickerProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
@@ -54,7 +61,7 @@ export function QuickPicker({
                 opt === current ? "border-orange-500 bg-orange-50" : "border-neutral-200"
               }`}
             >
-              {opt}
+              {label(opt)}
             </button>
           ))}
         </div>

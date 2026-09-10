@@ -15,6 +15,8 @@ import {
   gewichtProKiste,
   isoZuSheetDatum,
   istDatenzeile,
+  istGrossgebinde,
+  statistikSchluessel,
   taraFuerGebinde,
 } from "./constants";
 import { fasseZusammen } from "./plausibility";
@@ -400,9 +402,13 @@ export async function getReferenceData(): Promise<ReferenceData> {
     if (!sorte || !gewicht || !kisten) continue;
     const wert = gewichtProKiste(gewicht, kisten, gebindeart);
     if (!Number.isFinite(wert) || wert <= 0) continue;
-    if (!proSorteWerte.has(sorte)) proSorteWerte.set(sorte, []);
-    proSorteWerte.get(sorte)!.push(wert);
-    alleWerte.push(wert);
+    // Grossgebinde bekommen einen eigenen Schlüssel und bleiben aus dem Gesamttopf
+    // heraus: Ein Palox mit rund 300 kg neben Kisten mit rund 12 kg würde beide
+    // Erwartungsbereiche unbrauchbar machen.
+    const schluessel = statistikSchluessel(sorte, gebindeart);
+    if (!proSorteWerte.has(schluessel)) proSorteWerte.set(schluessel, []);
+    proSorteWerte.get(schluessel)!.push(wert);
+    if (!istGrossgebinde(gebindeart)) alleWerte.push(wert);
   }
 
   const sortenStats: Record<string, SorteStats> = {};

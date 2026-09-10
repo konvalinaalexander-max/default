@@ -6,8 +6,13 @@ export const PALETTE_TARA_KG = 25;
 
 export interface Gebindeart {
   name: string;
-  /** Leergewicht einer einzelnen leeren Kiste in kg. */
+  /** Leergewicht eines einzelnen leeren Gebindes in kg. */
   taraKg: number;
+  /**
+   * Grossgebinde fassen ein Vielfaches einer Kiste - ein Holz Palox rund zwei Dutzend.
+   * Deshalb werden ihre Erfahrungswerte getrennt geführt, siehe statistikSchluessel().
+   */
+  grossgebinde?: boolean;
 }
 
 /**
@@ -20,6 +25,9 @@ export const GEBINDEARTEN: Gebindeart[] = [
   { name: "IFCO 6410", taraKg: 1.36 },
   { name: "IFCO 6416", taraKg: 1.68 },
   { name: "IFCO 6424", taraKg: 2.0 },
+  // Grosskiste aus Holz. Steht bewusst am Ende der Liste: Der Standard bleibt dadurch G2,
+  // und in der Auswahl auf dem Handy liegt das seltene Gebinde nicht vor den häufigen.
+  { name: "Holz Palox", taraKg: 45, grossgebinde: true },
 ];
 
 /**
@@ -55,9 +63,44 @@ export function taraFuerGebinde(gebindeart?: string | null): number {
     if (treffer) return treffer.taraKg;
   }
 
+  // Dasselbe für den Palox: "Palox", "Holzpalox" oder "Palox Holz" von Hand ins Sheet
+  // getippt soll nicht mit dem Leergewicht einer Kiste gerechnet werden - das wären
+  // 43,5 kg zu viel Netto pro Zeile.
+  if (/palox/i.test(gesucht)) {
+    const treffer = GEBINDEARTEN.find((g) => /palox/i.test(g.name));
+    if (treffer) return treffer.taraKg;
+  }
+
   // Unbekannte Bezeichnung: kann nur aus Altbestand oder Handeingabe im Sheet stammen,
   // da die App nur aus der Liste oben auswählen lässt.
   return GEBINDEARTEN[0].taraKg;
+}
+
+/**
+ * Ob eine Bezeichnung ein Grossgebinde meint. Gleiche Erkennung wie beim Leergewicht,
+ * damit von Hand geschriebene Schreibweisen im Sheet nicht anders behandelt werden.
+ */
+export function istGrossgebinde(gebindeart?: string | null): boolean {
+  const gesucht = (gebindeart ?? "").trim().toLowerCase();
+  if (!gesucht) return false;
+
+  const genau = GEBINDEARTEN.find((g) => g.name.toLowerCase() === gesucht);
+  if (genau) return genau.grossgebinde === true;
+
+  return /palox/.test(gesucht);
+}
+
+/**
+ * Schlüssel, unter dem die Erfahrungswerte einer Sorte geführt werden.
+ *
+ * Kisten und Grossgebinde kommen nicht in denselben Topf: Ein Palox bringt rund 300 kg
+ * auf ein Gebinde, eine Kiste rund 12 kg. Gemischt würde jede Palox-Palette als
+ * Ausreisser gemeldet, und genug Palox-Zeilen würden umgekehrt den Erwartungsbereich
+ * der Kisten verschieben. Der Zusatz steht sichtbar im Referenzwerte-Blatt - dort ist
+ * eine eigene Zeile "Amoro (Holz Palox)" genau das, was man lesen will.
+ */
+export function statistikSchluessel(sorte: string, gebindeart?: string | null): string {
+  return istGrossgebinde(gebindeart) ? `${sorte} (Holz Palox)` : sorte;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { gewichtProKiste, netGewichtProPalette } from "./constants";
+import { gewichtProKiste, istGrossgebinde, netGewichtProPalette } from "./constants";
 import type { SorteStats, SorteVorwissen } from "./types";
 
 export interface PlausibilitaetsCheck {
@@ -41,6 +41,21 @@ const SIGMA_FAKTOR_SORTE = 2.5;
  */
 const NOTBEREICH_VON = 2;
 const NOTBEREICH_BIS = 50;
+/**
+ * Derselbe Notbereich für Grossgebinde. Ein Holz Palox fasst ein Vielfaches einer Kiste,
+ * der Kisten-Notbereich würde also jede einzelne Palox-Palette melden. Bewusst weit
+ * gefasst: Er soll nur grobe Vertipper abfangen, solange zu diesem Gebinde noch keine
+ * eigenen Werte vorliegen.
+ */
+const NOTBEREICH_GROSS_VON = 20;
+const NOTBEREICH_GROSS_BIS = 900;
+
+/**
+ * So viele eigene Paletten braucht es, bevor aus ihnen allein ein Erwartungsbereich wird.
+ * Bei einer einzigen ist die Streuung rechnerisch 0, der Bereich also nur so breit wie die
+ * relative Toleranz - die nächste, völlig normale Palette würde prompt gemeldet.
+ */
+const MIN_EIGENE_OHNE_DURCHSCHNITT = 4;
 
 /**
  * Prüft eine Eingabe gegen den erwarteten Bereich pro Kiste.
@@ -71,7 +86,7 @@ export function pruefePlausibilitaet(
     };
   }
 
-  const bereich = bestimmeBereich(sorteStats, allgemeineStats);
+  const bereich = bestimmeBereich(sorteStats, allgemeineStats, istGrossgebinde(gebindeart));
 
   return {
     status:
@@ -85,20 +100,25 @@ export function pruefePlausibilitaet(
 
 function bestimmeBereich(
   sorteStats: SorteStats | undefined,
-  allgemeineStats?: SorteStats | null
+  allgemeineStats: SorteStats | null | undefined,
+  grossgebinde: boolean
 ): { von: number; bis: number; grundlage: PlausibilitaetsCheck["grundlage"] } {
   const eigeneProben = sorteStats?.anzahlProben ?? 0;
   const allgemeinBrauchbar =
     !!allgemeineStats &&
     allgemeineStats.anzahlProben >= MIN_ALLGEMEINE_PROBEN &&
     allgemeineStats.medianProKiste > 0;
+  const notbereich = grossgebinde
+    ? { von: NOTBEREICH_GROSS_VON, bis: NOTBEREICH_GROSS_BIS, grundlage: "notbereich" as const }
+    : { von: NOTBEREICH_VON, bis: NOTBEREICH_BIS, grundlage: "notbereich" as const };
 
-  // Nichts im Sheet und nichts zur Sorte: nur noch der weite Notbereich.
-  if (!allgemeinBrauchbar && eigeneProben === 0) {
-    return { von: NOTBEREICH_VON, bis: NOTBEREICH_BIS, grundlage: "notbereich" };
+  // Nichts Vergleichbares im Sheet und zu wenige eigene Werte: nur noch der weite
+  // Notbereich. Das ist der normale Zustand, wenn eine Gebindegrösse neu dazukommt.
+  if (!allgemeinBrauchbar && eigeneProben < MIN_EIGENE_OHNE_DURCHSCHNITT) {
+    return notbereich;
   }
 
-  // Kein belastbarer Gesamtdurchschnitt, aber eigene Werte: dann nur diese.
+  // Kein belastbarer Gesamtdurchschnitt, aber genug eigene Werte: dann nur diese.
   if (!allgemeinBrauchbar && sorteStats) {
     return {
       ...spanneAus(

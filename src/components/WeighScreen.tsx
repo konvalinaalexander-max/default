@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { STANDARD_ANZAHL_KISTEN, STANDARD_GEBINDEART } from "@/lib/constants";
-import { formatMenge, formatNumber, t, type Lang } from "@/lib/i18n";
+import {
+  STANDARD_ANZAHL_KISTEN,
+  STANDARD_GEBINDEART,
+  istGrossgebinde,
+  statistikSchluessel,
+} from "@/lib/constants";
+import { formatMenge, formatNumber, gebindeLabel, t, type Lang } from "@/lib/i18n";
 import { pruefePlausibilitaet, waehlePrior } from "@/lib/plausibility";
 import type { SorteStats, SorteVorwissen } from "@/lib/types";
 import { BestaetigungsDialog } from "./BestaetigungsDialog";
@@ -100,8 +105,13 @@ export function WeighScreen({
       gewichtBrutto,
       anzahlKisten,
       gebindeart,
-      sortenStats[sorte],
-      waehlePrior(sorte, vorwissen, allgemeineStats, allgemeinesVorwissen)
+      sortenStats[statistikSchluessel(sorte, gebindeart)],
+      // Für ein Grossgebinde gibt es keinen brauchbaren Ausgangswert: Alles Vorwissen
+      // ist in kg pro Kiste geführt, ein Palox fasst ein Vielfaches davon. Ohne
+      // Ausgangswert greift der weite Notbereich, bis eigene Palox-Werte vorliegen.
+      istGrossgebinde(gebindeart)
+        ? null
+        : waehlePrior(sorte, vorwissen, allgemeineStats, allgemeinesVorwissen)
     );
 
     if (check.status === "unmoeglich") {
@@ -169,14 +179,18 @@ export function WeighScreen({
           {schlag || t(lang, "pleaseSelect")} ▾
         </button>
 
-        <div className="flex items-stretch gap-2">
+        {/* Sorte und Gebinde teilen sich eine Zeile. Reicht der Platz nicht - etwa weil
+            das Gebinde in dieser Sprache lang heisst ("Palox de madeira") -, rutscht das
+            Gebinde auf eine eigene Zeile, statt die Sorte auf drei Buchstaben
+            zusammenzudrücken. Die Mindestbreite der Sorte löst den Umbruch aus. */}
+        <div className="flex flex-wrap items-stretch gap-2">
           {/* Die Sorte bekommt den Platz, das Gebinde bleibt schmal - es ist fast immer
               der Standard. Weicht es ab, springt es durch die Farbe sofort ins Auge. */}
           <button
             type="button"
             onClick={() => setSortenwahlOffen(true)}
             aria-label={t(lang, "changeVariety")}
-            className="min-w-0 flex-1 truncate rounded-xl border-2 border-neutral-300 bg-white px-4 py-3 text-xl font-bold active:bg-neutral-50"
+            className="min-w-[9rem] flex-1 truncate rounded-xl border-2 border-neutral-300 bg-white px-4 py-3 text-xl font-bold active:bg-neutral-50"
           >
             {sorte || t(lang, "pleaseSelect")} ▾
           </button>
@@ -190,7 +204,7 @@ export function WeighScreen({
                 : "border-neutral-300 bg-white text-neutral-500"
             }`}
           >
-            {gebindeart} ▾
+            {gebindeLabel(lang, gebindeart)} ▾
           </button>
         </div>
 
@@ -293,7 +307,7 @@ export function WeighScreen({
           zeilen={[
             { label: t(lang, "field"), wert: schlag },
             { label: t(lang, "variety"), wert: sorte },
-            { label: t(lang, "packagingLabel"), wert: gebindeart },
+            { label: t(lang, "packagingLabel"), wert: gebindeLabel(lang, gebindeart) },
             { label: t(lang, "cratesLabel"), wert: formatNumber(lang, dialog.kisten, 0) },
             {
               label: t(lang, "weightLabelShort"),
@@ -393,6 +407,7 @@ export function WeighScreen({
           title={t(lang, "changePackaging")}
           options={gebindearten}
           current={gebindeart}
+          label={(g) => gebindeLabel(lang, g)}
           // Die Gebindearten liegen mit ihrem Leergewicht fest - hier gibt es nichts
           // hinzuzufügen, was die App nicht ausrechnen könnte.
           neuModus="keine"

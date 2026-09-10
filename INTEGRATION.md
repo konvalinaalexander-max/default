@@ -25,7 +25,8 @@ Palette wird als Zeile in ein **Google Sheet** geschrieben. Es gibt keine Datenb
   „Feld“; heute durchgängig „Schlag“, passend zur Anbauplanung.
 - **Sorte** = Kürbissorte (z. B. „Lekor“, „Kaori Kuri“).
 - **Palette** = eine Erfassungseinheit: eine Europalette mit mehreren gleichen Kisten.
-- **Gebinde / Kiste** = die Kisten auf der Palette. Standard ist „G2“; alternativ IFCO-Kisten.
+- **Gebinde / Kiste** = die Gebinde auf der Palette. Standard ist „G2“; alternativ
+  IFCO-Kisten oder ein „Holz Palox“ (Grosskiste, ein Gebinde statt vieler).
 - **Anlieferung / Session** = ein Lastwagen bzw. eine Erfassungssitzung; für alle Paletten
   dieser Session gelten dieselben Kopfangaben (Datum/Person/Schlag/Sorte).
 - **Netto** = Gewicht der Kürbisse ohne Palette und ohne Leergut der Kisten.
@@ -68,7 +69,7 @@ Spalten (1-indexiert, A = 1):
 | D | Sorte | muss zur Anbauplanung passen | App |
 | E | Gewicht brutto [kg] | Rohgewicht ab Waage (Zahl) | App |
 | F | Anzahl Gebinde | Anzahl Kisten (ganze Zahl) | App |
-| G | Gebindeart (leer = G2) | `""`/`G2`/`IFCO 6410`/`IFCO 6416`/`IFCO 6424` | App |
+| G | Gebindeart (leer = G2) | `""`/`G2`/`IFCO 6410`/`IFCO 6416`/`IFCO 6424`/`Holz Palox` | App |
 | H | Bemerkung | optional | App |
 | I | Netto pro Palette [kg] | **Formel** `=E{r}-25-F{r}*{tara}` | App (Formel) |
 | J | Netto pro Kiste [kg] | **Formel** `=I{r}/F{r}` | App (Formel) |
@@ -80,15 +81,20 @@ netto_pro_palette = brutto − 25 − anzahlKisten × tara(gebindeart)
 netto_pro_kiste   = netto_pro_palette / anzahlKisten
 ```
 - `25` kg = angenommenes **Palettengewicht** (`PALETTE_TARA_KG`).
-- `tara(gebindeart)` = Leergewicht **einer** Kiste:
-  | Gebindeart | tara [kg] |
-  |-----------|-----------|
-  | G2 (Standard, auch bei leerem Feld) | 1.5 |
-  | IFCO 6410 | 1.36 |
-  | IFCO 6416 | 1.68 |
-  | IFCO 6424 | 2.0 |
-  Unbekannte/Alt-Bezeichnungen (z. B. „IFCO 6410 schwarz“) werden per Modellnummer
-  erkannt; sonst gilt G2.
+- `tara(gebindeart)` = Leergewicht **eines** Gebindes:
+  | Gebindeart | tara [kg] | |
+  |-----------|-----------|--|
+  | G2 (Standard, auch bei leerem Feld) | 1.5 | |
+  | IFCO 6410 | 1.36 | |
+  | IFCO 6416 | 1.68 | |
+  | IFCO 6424 | 2.0 | |
+  | Holz Palox | 45 | Grossgebinde |
+  Unbekannte/Alt-Bezeichnungen werden über ein Schlüsselwort erkannt: die Modellnummer
+  (z. B. „IFCO 6410 schwarz“) bzw. „Palox“ (z. B. „Palox Holz“); sonst gilt G2.
+- **Grossgebinde:** Beim `Holz Palox` steht in Spalte F in der Regel `1`. `netto_pro_kiste`
+  ist dann das Netto **des ganzen Palox** (rund 250–350 kg) und nicht mit dem Wert einer
+  Kiste (rund 12 kg) vergleichbar. Wer über Spalte J auswertet, muss die beiden
+  Gebindeklassen trennen.
 
 > **Für Datenkonsumenten:** Verlasst euch für „Netto“ auf Spalte **I** (bzw. rechnet die
 > Formel selbst nach). Spalte E ist **brutto**. Die Netto-Formeln stehen nur in echten
@@ -126,6 +132,9 @@ deren Schlag-Sorte-Kombination in der Planung fehlt (Tippfehler / Umbenennung).
 ### 4.3 Tab `Referenzwerte` — kumulierte Erfahrungswerte je Sorte
 
 - **Zeile 1:** Spaltenköpfe. **Ab Zeile 2:** je eine Zeile pro Sorte.
+- **Grossgebinde stehen in einer eigenen Zeile** mit dem Namen `<Sorte> (Holz Palox)`.
+  Grund: `⌀ kg/Kiste` mischt sonst rund 300 kg pro Palox mit rund 12 kg pro Kiste und
+  wird für beide unbrauchbar. Spalte A ist deshalb **nicht** immer ein reiner Sortenname.
 
 | Sp. | Kopf | Inhalt |
 |----|------|--------|
@@ -182,7 +191,7 @@ Antwort-Form (`ReferenceData`):
   "schlaege": ["Slowgrow Uster", ...],         // NUR aus der Anbauplanung
   "sortenNachSchlag": { "Slowgrow Uster": ["Lekor","Kaori Kuri", ...], ... },
   "sorten": ["Amoro", ...],                    // alle Sorten der Planung
-  "gebindearten": ["G2","IFCO 6410","IFCO 6416","IFCO 6424"],
+  "gebindearten": ["G2","IFCO 6410","IFCO 6416","IFCO 6424","Holz Palox"],
   "sortenStats": {                             // aus der LAUFENDEN Saison (Journal)
     "Lekor": { "medianProKiste": 10.2, "madProKiste": 0.4, "anzahlProben": 81 }, ...
   },
@@ -264,7 +273,7 @@ interface PaletteEntry {
   sorte: string;
   gewichtBrutto: number;   // kg, Rohgewicht ab Waage
   anzahlKisten: number;
-  gebindeart: string;      // "G2" | "IFCO 6410" | "IFCO 6416" | "IFCO 6424"
+  gebindeart: string;      // "G2" | "IFCO 6410" | "IFCO 6416" | "IFCO 6424" | "Holz Palox"
   bemerkung?: string;
   sheetRow: number | null; // Zeilennummer im Sheet (nach erstem Sync)
   syncStatus: "pending" | "syncing" | "synced" | "error";

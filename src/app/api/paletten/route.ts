@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { netGewichtProPalette } from "@/lib/constants";
+import { netGewichtProPalette, statistikSchluessel } from "@/lib/constants";
 import { appendPalette, schreibeReferenzwertFort } from "@/lib/googleSheets";
 import type { PaletteEntry } from "@/lib/types";
 import { pruefePalette } from "@/lib/validation";
@@ -20,7 +20,10 @@ export async function POST(request: Request) {
     // einem Wiederholversuch, der die Palette schon im Sheet findet, wäre es doppelt.
     if (!result.schonVorhanden) {
       await schreibeReferenzwertFort(
-        entry.sorte,
+        // Grossgebinde bekommen eine eigene Zeile im Referenzwerte-Blatt. Sonst würde
+        // ein Palox mit 300 kg auf ein Gebinde den Schnitt pro Kiste der Sorte anheben -
+        // und damit den Erwartungsbereich der nächsten Saison verschieben.
+        statistikSchluessel(entry.sorte, entry.gebindeart),
         entry.anzahlKisten,
         netGewichtProPalette(entry.gewichtBrutto, entry.anzahlKisten, entry.gebindeart)
       ).catch((err) => {

@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { STANDARD_GEBINDEART, gewichtProKiste } from "@/lib/constants";
-import { formatDate, formatMenge, formatNumber, t, type Lang } from "@/lib/i18n";
+import {
+  formatDate,
+  formatMenge,
+  formatNumber,
+  gebindeLabel,
+  t,
+  type Lang,
+} from "@/lib/i18n";
 import type { PaletteEntry, SessionConfig } from "@/lib/types";
 import { ComboField } from "./ComboField";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -307,7 +314,7 @@ function PaletteCard({
               : undefined
           }
         >
-          {entry.gebindeart}
+          {gebindeLabel(lang, entry.gebindeart)}
         </span>
       </div>
 

@@ -685,6 +685,32 @@ export function t(lang: Lang, key: TextKey, params?: Record<string, string | num
   return text;
 }
 
+/**
+ * Anzeigenamen der Gebindearten.
+ *
+ * Nur was auf dem Bildschirm steht, wird übersetzt - ins Sheet geht immer der Name aus
+ * GEBINDEARTEN. Stünde je nach Handysprache eine andere Bezeichnung in Spalte G, fände
+ * die Zuordnung des Leergewichts sie nicht mehr und würde auf die Standardkiste
+ * zurückfallen: 43,5 kg zu viel Netto auf jeder Palox-Zeile.
+ *
+ * "G2" und die IFCO-Nummern sind Typenbezeichnungen und in jeder Sprache gleich - sie
+ * stehen deshalb gar nicht in dieser Tabelle und bleiben unverändert.
+ */
+const GEBINDE_NAMEN: Record<string, Record<Lang, string>> = {
+  "Holz Palox": {
+    de: "Holz Palox",
+    en: "Wood palox",
+    hu: "Fa palox",
+    pl: "Palox drewniany",
+    pt: "Palox de madeira",
+  },
+};
+
+/** Gebindeart so, wie sie auf dem Bildschirm stehen soll. */
+export function gebindeLabel(lang: Lang, name: string): string {
+  return GEBINDE_NAMEN[name]?.[lang] ?? name;
+}
+
 export function localeOf(lang: Lang): string {
   return LANGUAGES.find((l) => l.code === lang)?.locale ?? "de-CH";
 }
